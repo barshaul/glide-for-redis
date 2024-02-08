@@ -61,10 +61,10 @@ for ort_result in ort_results_per_lang:
         ort_result.notice_file, "r"
     ) as notice_file:
         json_file = json.load(ort_results)
-        notice_file = notice_file.read()
+        notice_txt = notice_file.read()
         for package in json_file["analyzer"]["result"]["packages"]:
             package_name = package["id"].split(":")[2]
-            if package_name not in notice_file:
+            if package_name not in notice_txt:
                 # skip packages not in the final report
                 print(f"Skipping package {package_name}")
                 continue
@@ -83,11 +83,11 @@ for ort_result in ort_results_per_lang:
                 raise
 
 print("\n\n#### Found Licenses #####\n")
-licenses_set = sorted(licenses_set)
-for license in licenses_set:
+sorted_licenses_set = sorted(licenses_set)
+for license in sorted_licenses_set:
     print(f"{license}")
 
 print("\n\n#### New / Not Approved Licenses #####\n")
-for license in licenses_set:
+for license in sorted_licenses_set:
     if license not in APPROVED_LICENSES:
         print(f"{license}")
