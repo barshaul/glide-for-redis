@@ -15,7 +15,7 @@ use crate::retry_strategies::get_fixed_interval_backoff;
 use directories::BaseDirs;
 use dispose::{Disposable, Dispose};
 use futures::stream::StreamExt;
-use logger_core::{log_debug, log_error, log_info, log_trace, log_warn};
+use logger_core::{log_debug, log_error, log_info, log_trace, log_warn, Level};
 use protobuf::Message;
 use redis::cluster_routing::{
     MultipleNodeRoutingInfo, Route, RoutingInfo, SingleNodeRoutingInfo, SlotAddr,
@@ -734,6 +734,7 @@ impl SocketListener {
         while retries > 0 {
             match UnixListener::bind(self.socket_path.clone()) {
                 Ok(listener) => {
+                    logger_core::init(Some(Level::Info), Some("output.log"));
                     return SocketCreationResult::Created(listener);
                 }
                 Err(err) if err.kind() == AddrInUse => {

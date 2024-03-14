@@ -72,8 +72,8 @@ impl Level {
 // In any of the calls to the function, including the first - resetting the existence loggers to the new setting
 // provided by using the global reloadable handle
 // The logger will save only logs of the given level or above.
-pub fn init(minimal_level: Option<Level>, file_name: Option<&str>) -> Level {
-    let level = minimal_level.unwrap_or(Level::Warn);
+pub fn init(_minimal_level: Option<Level>, file_name: Option<&str>) -> Level {
+    let level = Level::Info;
     let level_filter = level.to_filter();
     let reloads = INITIATE_ONCE.init_once.get_or_init(|| {
         let stdout_fmt = tracing_subscriber::fmt::layer()
