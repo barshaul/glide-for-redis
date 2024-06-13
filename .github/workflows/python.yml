@@ -12,6 +12,7 @@ on:
             - .github/workflows/build-python-wrapper/action.yml
             - .github/workflows/install-shared-dependencies/action.yml
             - .github/workflows/install-redis-modules/action.yml
+            - .github/workflows/install-valkey/action.yml
 
     pull_request:
         paths:
@@ -23,6 +24,7 @@ on:
             - .github/workflows/build-python-wrapper/action.yml
             - .github/workflows/install-shared-dependencies/action.yml
             - .github/workflows/install-redis-modules/action.yml
+            - .github/workflows/install-valkey/action.yml
 
 concurrency:
     group: python-${{ github.head_ref || github.ref }}
@@ -38,20 +40,35 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                redis:
-                    - 6.2.14
-                    - 7.2.3
+              engine_version:
+                # - redis-6.2.14
+                # - redis-7.2.3
+                - valkey-7.2.5
 
         steps:
             - uses: actions/checkout@v4
               with:
                   submodules: recursive
 
+            - name: Store the engine's version
+              id: version
+              run: |
+                ENGINE_VERSION="$(cut -d'-' -f2 <<<'${{ matrix.engine_version }}')"
+                echo "engine_version=${ENGINE_VERSION}" >> $GITHUB_OUTPUT
+
             - name: Install redis
+              if: ${{ contains(matrix.engine_version, 'redis') }}
               uses: ./.github/workflows/install-redis
               with:
-                  redis-version: ${{ matrix.redis }}
+                  redis-version: ${{ steps.version.outputs.engine_version }}
 
+            - name: Install Valkey
+              if: ${{ contains(matrix.engine_version, 'valkey') }}
+              uses: ./.github/workflows/install-valkey
+              with:
+                  valkey-version: ${{ steps.version.outputs.engine_version }}
+                  target: "x86_64-unknown-linux-gnu"
+            
             - name: Set up Python 3.10
               uses: actions/setup-python@v4
               with:

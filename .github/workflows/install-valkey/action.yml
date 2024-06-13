@@ -1,0 +1,56 @@
+name: Install Valkey
+
+inputs:
+    valkey-version:
+        description: "valkey version to install"
+        required: true
+        type: string
+    target:
+        description: "Specified target toolchain, ex. x86_64-apple-darwin"
+        type: string
+        required: false
+        defalt: "x86_64-unknown-linux-gnu"
+        options:
+            - x86_64-unknown-linux-gnu
+            - aarch64-unknown-linux-gnu
+            - x86_64-apple-darwin
+            - aarch64-apple-darwin
+            - aarch64-unknown-linux-musl
+            - x86_64-unknown-linux-musl
+
+env:
+    CARGO_TERM_COLOR: always
+
+runs:
+    using: "composite"
+
+    steps:
+        - name: Create a folder for valkey binaries
+          run: mkdir -p ~/valkey-binaries/${{ inputs.valkey-version }}
+          shell: bash
+
+        - name: Cache Valkey
+          uses: actions/cache@v4
+          id: cache-valkey
+          with:
+            path: |
+                ~/valkey-binaries/${{ inputs.valkey-version }}/valkey-cli
+                ~/valkey-binaries/${{ inputs.valkey-version }}/valkey-server
+            key: valkey-${{ inputs.valkey-version }}-${{ inputs.target }}}
+
+        - name: Install Valkey
+          if: ${{ steps.cache-valkey.outputs.cache-hit != 'true' }}
+          shell: bash
+          run: | 
+            echo "Installing valkey ${{ inputs.valkey-version }}"
+            git clone https://github.com/valkey-io/valkey.git
+            cd valkey
+            git checkout ${{ inputs.valkey-version }}
+            make
+            sudo make install
+            sudo mv src/valkey-server src/valkey-cli ~/valkey-binaries/${{ inputs.valkey-version }}
+
+        - name: Remove the source package
+          if: ${{ steps.cache-valkey.outputs.cache-hit != 'true' }}
+          shell: bash
+          run: sudo rm -rf valkey/
