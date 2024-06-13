@@ -1,0 +1,10 @@
+[
+  {
+    "type": "valkey",
+    "version": "7.2.5"
+  },
+  {
+    "type": "redis",
+    "version": "7.2.4"
+  }
+]

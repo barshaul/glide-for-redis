@@ -21,6 +21,17 @@ inputs:
             - aarch64-apple-darwin
             - aarch64-unknown-linux-musl
             - x86_64-unknown-linux-musl
+    engine-type:
+      description: "The engine type, e.g. valkey"
+      required: true
+      type: string
+      options:
+        - valkey
+        - redis
+    engine-version:
+      description: "The engine version"
+      required: true
+      type: string
     github-token:
         description: "GITHUB_TOKEN, GitHub App installation access token"
         required: true
@@ -36,7 +47,7 @@ runs:
           run: |
               brew update
               brew upgrade || true
-              brew install git gcc pkgconfig openssl redis coreutils
+              brew install git gcc pkgconfig openssl coreutils wget
 
         - name: Install software dependencies for Ubuntu GNU
           shell: bash
@@ -58,7 +69,20 @@ runs:
           shell: bash
           if: "${{ inputs.os == 'amazon-linux' }}"
           run: |
-              yum install -y gcc pkgconfig openssl openssl-devel which curl redis6 gettext --allowerasing
+              yum install -y gcc pkgconfig openssl openssl-devel which curl gettext wget --allowerasing
+
+        - name: Install redis
+          if: ${{ matrix.engine-type == 'redis' }}
+          uses: ./.github/workflows/install-redis
+          with:
+              redis-version: ${{ steps.version.outputs.engine-version }}
+
+        - name: Install Valkey
+          if: ${{ matrix.engine-type == 'valkey' }}
+          uses: ./.github/workflows/install-valkey
+          with:
+            valkey-version: ${{ steps.version.outputs.engine-version }}
+            target: ${{ inputs.target }}
 
         - name: Install Rust toolchain and protoc
           if: "${{ !contains(inputs.target, 'musl') }}"

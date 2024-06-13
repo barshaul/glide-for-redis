@@ -18,6 +18,17 @@ inputs:
         required: false
         type: boolean
         default: "false"
+    engine-type:
+        description: "The engine type, e.g. valkey"
+        required: true
+        type: string
+        options:
+            - valkey
+            - redis
+    engine-version:
+        description: "The engine version"
+        required: true
+        type: string
     github-token:
         description: "GITHUB_TOKEN, GitHub App installation access token"
         required: true
@@ -34,6 +45,8 @@ runs:
               os: ${{ inputs.os }}
               target: ${{ inputs.target }}
               github-token: ${{ inputs.github-token }}
+              engine-type: ${{ inputs.engine-type }}
+              engine-version: ${{ inputs.engine-version }}
 
         - name: Install Python software dependencies
           shell: bash
