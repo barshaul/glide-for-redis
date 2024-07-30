@@ -295,6 +295,8 @@ def start_redis_server(
         "yes",
         "--logfile",
         f"{node_folder}/redis.log",
+        "--save",
+        "",
     ]
     if load_module:
         if len(load_module) == 0:
@@ -485,6 +487,117 @@ def create_standalone_replication(
 
     toc = time.perf_counter()
     logging.debug(f"create_replication Elapsed time: {toc - tic:0.4f}")
+
+
+def add_shard(
+    servers: List[RedisServer],
+    cluster_folder: str,
+    use_tls: bool,
+    replica_count: int,
+    existing_node: str,
+):
+    primary_server = servers[0]  # Assuming the first server is the primary
+    replica_servers = (
+        servers[1 : 1 + replica_count] if replica_count < len(servers) else servers[1:]
+    )  # Remaining are replicas
+
+    # Add primary node
+    logging.debug(f"## Adding primary node {primary_server} to cluster...")
+    subprocess.run(
+        [
+            "redis-cli",
+            *get_redis_cli_option_args(cluster_folder, use_tls),
+            "--cluster",
+            "add-node",
+            str(primary_server),
+            existing_node,
+        ],
+        check=True,
+        text=True,
+    )
+
+    primary_node_id = None
+    while primary_node_id is None:
+        # Get the node ID of the primary server
+        result = subprocess.run(
+            [
+                "redis-cli",
+                *get_redis_cli_option_args(cluster_folder, use_tls),
+                "-c",
+                "-h",
+                existing_node.split(":")[0],
+                "-p",
+                existing_node.split(":")[1],
+                "cluster",
+                "nodes",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        for line in result.stdout.split("\n"):
+            if str(primary_server) in line:
+                primary_node_id = line.split()[0]
+                break
+        time.sleep(1)
+
+    # Add replica nodes
+    time.sleep(10)
+    for replica_server in replica_servers:
+        logging.debug(
+            f"## Adding replica node {replica_server} under primary {primary_server} to cluster..."
+        )
+        x = [
+            "redis-cli",
+            *get_redis_cli_option_args(cluster_folder, use_tls),
+            "--cluster",
+            "add-node",
+            str(replica_server),
+            existing_node,
+            "--cluster-slave",
+            "--cluster-master-id",
+            primary_node_id,
+        ]
+        print(x)
+        subprocess.run(
+            [
+                "redis-cli",
+                *get_redis_cli_option_args(cluster_folder, use_tls),
+                "--cluster",
+                "add-node",
+                str(replica_server),
+                existing_node,
+                "--cluster-slave",
+                "--cluster-master-id",
+                primary_node_id,
+            ],
+            check=True,
+            text=True,
+        )
+
+    time.sleep(10)
+
+
+def rebalance_slots(
+    cluster_folder: str,
+    use_tls: bool,
+    existing_node: str,
+):
+    logging.debug(f"## Rebalancing cluster...")
+    p = subprocess.Popen(
+        [
+            "redis-cli",
+            *get_redis_cli_option_args(cluster_folder, use_tls),
+            "--cluster",
+            "rebalance",
+            existing_node,
+            "--cluster-use-empty-masters",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output, err = p.communicate(timeout=80)
+    print(output)
 
 
 def wait_for_a_message_in_redis_logs(
@@ -936,6 +1049,40 @@ def main():
         help="Keep the cluster folder (default: %(default)s)",
         required=False,
     )
+    parser_add_shard = subparsers.add_parser(
+        "add_shard", help="Add a shard to existing cluster"
+    )
+    parser_add_shard.add_argument(
+        "--existing-port",
+        required=True,
+    )
+    parser_add_shard.add_argument(
+        "--cluster-folder",
+        type=str,
+        help="Add the shard to the cluster in the specified folder path. Expects a relative or a full path",
+        required=True,
+    )
+    parser_add_shard.add_argument(
+        "-r",
+        "--replica-count",
+        type=int,
+        help="Number of replicas in each shard (default: %(default)s)",
+        default=1,
+        required=False,
+    )
+    parser_rebalance = subparsers.add_parser(
+        "rebalance", help="Add a shard to existing cluster"
+    )
+    parser_rebalance.add_argument(
+        "--existing-port",
+        required=True,
+    )
+    parser_rebalance.add_argument(
+        "--cluster-folder",
+        type=str,
+        help="Add the shard to the cluster in the specified folder path. Expects a relative or a full path",
+        required=True,
+    )
 
     args = parser.parse_args()
     # Check logging level
@@ -1032,6 +1179,31 @@ def main():
         )
         toc = time.perf_counter()
         logging.info(f"Cluster stopped in {toc - tic:0.4f} seconds")
+
+    elif args.action == "add_shard":
+        cluster_mode = True
+        shard_count = 1
+        servers = create_servers(
+            args.host,
+            shard_count,
+            args.replica_count,
+            None,
+            args.cluster_folder,
+            args.tls,
+            cluster_mode,
+            False,
+        )
+        existing_node = f"127.0.0.1:{args.existing_port}"
+        add_shard(
+            servers, args.cluster_folder, args.tls, args.replica_count, existing_node
+        )
+        rebalance_slots(args.cluster_folder, args.tls, existing_node)
+
+    elif args.action == "rebalance":
+        cluster_mode = True
+        shard_count = 1
+        existing_node = f"127.0.0.1:{args.existing_port}"
+        rebalance_slots(args.cluster_folder, args.tls, existing_node)
 
 
 if __name__ == "__main__":

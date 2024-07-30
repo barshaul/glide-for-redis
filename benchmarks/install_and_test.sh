@@ -238,13 +238,13 @@ done
 
 for currentDataSize in $dataSize
 do
-    if [ -n "$minimalFlag" ];
-    then
-        echo "Minimal run, not filling database"
-        flushDB
-    else
-        fillDB $currentDataSize
-    fi
+    # if [ -n "$minimalFlag" ];
+    # then
+    #     echo "Minimal run, not filling database"
+    #     flushDB
+    # else
+    #     fillDB $currentDataSize
+    # fi
 
     if [ $runAllBenchmarks == 1 ] || [ $runPython == 1 ];
     then

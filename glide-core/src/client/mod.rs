@@ -26,7 +26,7 @@ pub const HEARTBEAT_SLEEP_DURATION: Duration = Duration::from_secs(1);
 
 pub const DEFAULT_RESPONSE_TIMEOUT: Duration = Duration::from_millis(250);
 pub const DEFAULT_CONNECTION_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
-pub const DEFAULT_PERIODIC_CHECKS_INTERVAL: Duration = Duration::from_secs(60);
+pub const DEFAULT_PERIODIC_CHECKS_INTERVAL: Duration = Duration::from_secs(2);
 pub const INTERNAL_CONNECTION_TIMEOUT: Duration = Duration::from_millis(250);
 pub const FINISHED_SCAN_CURSOR: &str = "finished";
 

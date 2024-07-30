@@ -22,6 +22,7 @@ from glide import (
     Logger,
     LogLevel,
     NodeAddress,
+    ReadFrom,
 )
 
 
@@ -151,19 +152,27 @@ def timer(func):
 async def execute_commands(clients, total_commands, data_size, action_latencies):
     global started_tasks_counter
     while started_tasks_counter < total_commands:
-        started_tasks_counter += 1
-        chosen_action = choose_action()
-        client = clients[started_tasks_counter % len(clients)]
-        tic = time.perf_counter()
-        if chosen_action == ChosenAction.GET_EXISTING:
-            await client.get(generate_key_set())
-        elif chosen_action == ChosenAction.GET_NON_EXISTING:
-            await client.get(generate_key_get())
-        elif chosen_action == ChosenAction.SET:
-            await client.set(generate_key_set(), generate_value(data_size))
-        toc = time.perf_counter()
-        execution_time_milli = (toc - tic) * 1000
-        action_latencies[chosen_action].append(truncate_decimal(execution_time_milli))
+        try:
+            started_tasks_counter += 1
+            chosen_action = choose_action()
+            client = clients[started_tasks_counter % len(clients)]
+            tic = time.perf_counter()
+            if chosen_action == ChosenAction.GET_EXISTING:
+                await client.get(generate_key_set())
+            elif chosen_action == ChosenAction.GET_NON_EXISTING:
+                await client.get(generate_key_get())
+            elif chosen_action == ChosenAction.SET:
+                await client.set(generate_key_set(), generate_value(data_size))
+            toc = time.perf_counter()
+            execution_time_milli = (toc - tic) * 1000
+            action_latencies[chosen_action].append(
+                truncate_decimal(execution_time_milli)
+            )
+        except Exception as e:
+            now = datetime.now(timezone.utc)
+            print(
+                f"{now.strftime('%H:%M:%S.')}{now.microsecond // 1000:03d} Recieved excption: {e}"
+            )
     return True
 
 
@@ -264,7 +273,7 @@ async def main(
     use_tls,
     is_cluster,
 ):
-    if clients_to_run == "all":
+    if clients_to_run == "all" or clients_to_run == "redispy":
         client_class = redispy.RedisCluster if is_cluster else redispy.Redis
         clients = await create_clients(
             client_count,
@@ -290,7 +299,9 @@ async def main(
         # Glide Socket
         client_class = GlideClusterClient if is_cluster else GlideClient
         config = BaseClientConfiguration(
-            [NodeAddress(host=host, port=port)], use_tls=use_tls
+            [NodeAddress(host=host, port=port)],
+            use_tls=use_tls,
+            read_from=ReadFrom.PREFER_REPLICA,
         )
         clients = await create_clients(
             client_count,
@@ -308,7 +319,7 @@ async def main(
 
 
 def number_of_iterations(num_of_concurrent_tasks):
-    return min(max(100000, num_of_concurrent_tasks * 10000), 5000000)
+    return min(max(100000000, num_of_concurrent_tasks * 10000), 500000000)
 
 
 if __name__ == "__main__":
@@ -323,7 +334,7 @@ if __name__ == "__main__":
 
     # Setting the internal logger to log every log that has a level of info and above,
     # and save the logs to a file with the name of the results file.
-    Logger.set_logger_config(LogLevel.INFO, Path(args.resultsFile).stem)
+    Logger.set_logger_config(LogLevel.DEBUG, "glide-demo")
 
     product_of_arguments = [
         (data_size, int(num_of_concurrent_tasks), int(number_of_clients))
