@@ -2,8 +2,15 @@
 
 initial_node_port=$1
 initial_node_ip="127.0.0.1"
-html_file="redis_status.html"
-temp_file="temp_status.html"
+
+# Check if two log files are provided as arguments
+if [ "$#" -ne 2 ]; then
+    client="Glide"
+else
+    client=$2
+fi
+html_file="redis_status_$client.html"
+temp_file="temp_status_$client.html"
 
 # Continuously update the dynamic part within the loop
 while true; do
@@ -24,7 +31,7 @@ while true; do
     </style>
 </head>
 <body>
-    <h1>Cluster Status</h1>
+    <h1>Cluster Status: $client</h1>
 EOF
 
     declare -A shard_data  # Associative array to store shard data

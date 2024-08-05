@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valkey GLIDE PubSub Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+        .leaderboard, .nodes {
+            font-size: 1em;
+            margin-top: 20px;
+            width: 100%;
+        }
+        .button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        .leaderboard ul, .nodes ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .leaderboard li, .nodes li {
+            background: #eee;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9em; /* Adjust font size if needed */
+            white-space: nowrap; /* Prevent text from wrapping */
+        }
+        .columns {
+            display: flex;
+            flex-wrap: nowrap;
+            justify-content: space-between;
+        }
+        .column {
+            flex: 1;
+            margin: 10px;
+            min-width: 200px;
+        }
+        .primary {
+            color: green;
+        }
+        .replica {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Valkey GLIDE PubSub Demo</h1>
+        <div class="columns">
+            <div class="column leaderboard" id="publisher">
+                <h2>Publisher Messages</h2>
+                <ul id="publisher_messages">Loading...</ul>
+            </div>
+            <div class="column leaderboard" id="listener">
+                <h2>Listener Messages</h2>
+                <ul id="listener_messages">Loading...</ul>
+            </div>
+            <div class="column nodes">
+                <h2>Cluster Nodes</h2>
+                <ul id="nodes-list">Loading...</ul>
+            </div>
+        </div>
+        <input type="text" id="port" placeholder="Enter port number">
+        <button class="button" onclick="killPrimaryNode()">Kill Primary</button>
+        <button class="button" onclick="forceFailover()">Force Failover</button>
+        <div id="channel-slot">Loading channel slot...</div>
+    </div>
+    <script>
+        async function fetchData(url) {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data;
+        }
+
+        async function updateMessages() {
+            const publisherMessages = await fetchData('/publisher_messages');
+            const listenerMessages = await fetchData('/listener_messages');
+            const clusterNodes = await fetchData('/cluster_nodes');
+            const channelSlot = await fetchData('/channel_slot');
+
+            document.getElementById('publisher_messages').innerHTML = publisherMessages.map(msg => `<li class="message">${msg}</li>`).join('');
+            document.getElementById('listener_messages').innerHTML = listenerMessages.map(msg => `<li class="message">${msg}</li>`).join('');
+            document.getElementById('nodes-list').innerHTML = clusterNodes.nodes.map(node => `<li>${node}</li>`).join('');
+            document.getElementById('channel-slot').innerText = `Channel slot: ${channelSlot.slot}`;
+        }
+
+        async function killPrimaryNode() {
+            const port = document.getElementById('port').value;
+            const response = await fetch('/kill_primary_node', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ port })
+            });
+            const data = await response.json();
+            alert(data.message || data.error);
+        }
+
+        async function forceFailover() {
+            const port = document.getElementById('port').value;
+            const response = await fetch('/force_failover', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ port })
+            });
+            const data = await response.json();
+            alert(data.message || data.error);
+        }
+
+        setInterval(updateMessages, 1000);
+    </script>
+</body>
+</html>

@@ -297,6 +297,10 @@ def start_redis_server(
         f"{node_folder}/redis.log",
         "--save",
         "",
+        "--cluster-require-full-coverage",
+        "no",
+        "--cluster-node-timeout",
+        "1500"
     ]
     if load_module:
         if len(load_module) == 0:
@@ -546,18 +550,6 @@ def add_shard(
         logging.debug(
             f"## Adding replica node {replica_server} under primary {primary_server} to cluster..."
         )
-        x = [
-            "redis-cli",
-            *get_redis_cli_option_args(cluster_folder, use_tls),
-            "--cluster",
-            "add-node",
-            str(replica_server),
-            existing_node,
-            "--cluster-slave",
-            "--cluster-master-id",
-            primary_node_id,
-        ]
-        print(x)
         subprocess.run(
             [
                 "redis-cli",

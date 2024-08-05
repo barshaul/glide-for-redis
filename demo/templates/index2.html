@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valkey GLIDE Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+        .leaderboard, .tps, .nodes {
+            font-size: 1.2em;
+            margin-top: 20px;
+            width: 100%;
+        }
+        .button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        .leaderboard ul, .nodes ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .leaderboard li, .nodes li {
+            background: #eee;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .columns {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .column {
+            flex: 1;
+            margin: 10px;
+            min-width: 280px;
+        }
+        .primary {
+            color: green;
+        }
+        .replica {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Valkey GLIDE Demo</h1>
+        <div class="tps" id="tps-value">TPS: Loading...</div>
+        <input type="text" id="port" placeholder="Enter port number">
+        <button class="button" onclick="killPrimaryNode()">Kill primary node</button>
+        <button class="button" onclick="forceFailover()">Force Failover</button>
+        <button class="button" onclick="addShard()">Add Shard</button>
+        <div class="columns">
+            <div class="column leaderboard">
+                <h2>Leaderboard</h2>
+                <ul id="leaderboard-list">Loading...</ul>
+            </div>
+            <div class="column nodes">
+                <h2>Cluster Nodes</h2>
+                <ul id="nodes-list">Loading...</ul>
+            </div>
+        </div>
+    </div>
+    <script>
+        async function fetchData(url) {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data;
+        }
+
+        async function updateLeaderboard() {
+            const data = await fetchData('/leaderboard');
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = '';
+            data.leaderboard.forEach(([user, score]) => {
+                const item = document.createElement('li');
+                item.textContent = `${user}: ${score}`;
+                list.appendChild(item);
+            });
+        }
+
+        async function updateTps() {
+            const data = await fetchData('/tps');
+            const tpsValue = document.getElementById('tps-value');
+            tpsValue.textContent = `TPS: ${data.tps}`;
+        }
+
+        async function updateClusterNodes() {
+            const data = await fetchData('/cluster_nodes');
+            const list = document.getElementById('nodes-list');
+            list.innerHTML = '';
+            data.nodes.forEach(node => {
+                const item = document.createElement('li');
+                item.innerHTML = node;
+                list.appendChild(item);
+            });
+        }
+
+        async function killPrimaryNode() {
+            const port = document.getElementById('port').value;
+            const response = await fetch('/kill_primary_node', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ port })
+            });
+            const data = await response.json();
+            alert(data.message || data.error);
+        }
+
+        async function forceFailover() {
+            const port = document.getElementById('port').value;
+            const response = await fetch('/force_failover', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ port })
+            });
+            const data = await response.json();
+            alert(data.message || data.error);
+        }
+
+        async function addShard() {
+            const port = document.getElementById('port').value;
+            const response = await fetch('/add_shard', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ port })
+            });
+            const data = await response.json();
+            alert(data.message || data.error);
+        }
+
+        setInterval(updateLeaderboard, 1000);
+        setInterval(updateTps, 1000);
+        setInterval(updateClusterNodes, 1000);
+    </script>
+</body>
+</html>

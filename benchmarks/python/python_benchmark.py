@@ -25,6 +25,10 @@ from glide import (
     ReadFrom,
 )
 
+keys_5_shards = ["f", "fbat", "d234", "d23459", "foo", "foo1", "f111"]
+keys_3_shards = ["f", "d234", "foo1"]
+cmd_type = ["SET", "GET"]
+
 
 class ChosenAction(Enum):
     GET_NON_EXISTING = 1
@@ -149,20 +153,28 @@ def timer(func):
     return wrapper
 
 
-async def execute_commands(clients, total_commands, data_size, action_latencies):
+async def execute_commands(
+    clients, total_commands, data_size, action_latencies, task_id
+):
     global started_tasks_counter
+    key = keys_5_shards[task_id % len(keys_5_shards)]
+    cmd = cmd_type[task_id % len(cmd_type)]
     while started_tasks_counter < total_commands:
         try:
             started_tasks_counter += 1
             chosen_action = choose_action()
             client = clients[started_tasks_counter % len(clients)]
             tic = time.perf_counter()
-            if chosen_action == ChosenAction.GET_EXISTING:
-                await client.get(generate_key_set())
-            elif chosen_action == ChosenAction.GET_NON_EXISTING:
-                await client.get(generate_key_get())
-            elif chosen_action == ChosenAction.SET:
-                await client.set(generate_key_set(), generate_value(data_size))
+            # if chosen_action == ChosenAction.GET_EXISTING:
+            #     await client.get(generate_key_set())
+            # elif chosen_action == ChosenAction.GET_NON_EXISTING:
+            #     await client.get(generate_key_get())
+            # elif chosen_action == ChosenAction.SET:
+            #     await client.set(generate_key_set(), generate_value(data_size))
+            if cmd == "GET":
+                await client.get(key)
+            else:
+                await client.set(key, generate_value(data_size))
             toc = time.perf_counter()
             execution_time_milli = (toc - tic) * 1000
             action_latencies[chosen_action].append(
@@ -173,6 +185,7 @@ async def execute_commands(clients, total_commands, data_size, action_latencies)
             print(
                 f"{now.strftime('%H:%M:%S.')}{now.microsecond // 1000:03d} Recieved excption: {e}"
             )
+            pass
     return True
 
 
@@ -184,10 +197,14 @@ async def create_and_run_concurrent_tasks(
     global get_latency
     global set_latency
     started_tasks_counter = 0
+    task_id = 0
     for _ in range(num_of_concurrent_tasks):
         task = asyncio.create_task(
-            execute_commands(clients, total_commands, data_size, action_latencies)
+            execute_commands(
+                clients, total_commands, data_size, action_latencies, task_id
+            )
         )
+        task_id += 1
         running_tasks.add(task)
         task.add_done_callback(running_tasks.discard)
     await asyncio.gather(*(list(running_tasks)))
@@ -278,7 +295,11 @@ async def main(
         clients = await create_clients(
             client_count,
             lambda: client_class(
-                host=host, port=port, decode_responses=True, ssl=use_tls
+                host=host,
+                port=port,
+                decode_responses=True,
+                ssl=use_tls,
+                read_from_replicas=True,
             ),
         )
 
