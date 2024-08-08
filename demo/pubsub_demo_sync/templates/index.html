@@ -122,25 +122,25 @@
     </div>
     <div class="code-snapshot">
         <pre><code class="language-python">
-async def publish_messages():
+def publish_messages():
     global channel
     while True:
         try:
             timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
             message = f"hello_{timestamp}"
-            await publisher.publish(message, channel)
+            publisher.publish(channel, message)
             publisher_messages.appendleft(message)
         except Exception as e:
             print(f"Publisher received error {e}")
-        await asyncio.sleep(1)
+        time.sleep(1)
 
 
-async def listen_messages():
+def listen_messages():
     while True:
         try:
-            msg = await listener.get_pubsub_message()
+            msg = listener.get_message(ignore_subscribe_messages=True, timeout=None)
             if msg:
-                message = msg.message.decode()
+                message = msg["data"]
                 listener_messages.appendleft(message)
         except Exception as e:
             print(f"Listener received error {e}")
