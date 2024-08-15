@@ -300,7 +300,7 @@ def start_redis_server(
         "--cluster-require-full-coverage",
         "no",
         "--cluster-node-timeout",
-        "1500"
+        "15000",
     ]
     if load_module:
         if len(load_module) == 0:

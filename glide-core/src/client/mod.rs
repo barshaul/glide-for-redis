@@ -24,6 +24,7 @@ use tokio::sync::mpsc;
 
 pub const HEARTBEAT_SLEEP_DURATION: Duration = Duration::from_secs(1);
 
+pub const DEFAULT_RETRIES: u32 = 3;
 pub const DEFAULT_RESPONSE_TIMEOUT: Duration = Duration::from_millis(250);
 pub const DEFAULT_CONNECTION_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
 pub const DEFAULT_PERIODIC_CHECKS_INTERVAL: Duration = Duration::from_secs(2);
@@ -450,7 +451,9 @@ async fn create_cluster_client(
         None => Some(DEFAULT_PERIODIC_CHECKS_INTERVAL),
     };
     let mut builder = redis::cluster::ClusterClientBuilder::new(initial_nodes)
-        .connection_timeout(INTERNAL_CONNECTION_TIMEOUT);
+        .connection_timeout(INTERNAL_CONNECTION_TIMEOUT)
+        .retries(0)
+        .slots_refresh_rate_limit(Duration::from_secs(2), 0);
     if read_from_replicas {
         builder = builder.read_from_replicas();
     }

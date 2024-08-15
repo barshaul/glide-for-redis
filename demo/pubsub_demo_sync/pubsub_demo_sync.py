@@ -17,11 +17,16 @@ cluster_info = {}
 publisher = None
 listener = None
 global_client = None
-channel = "key4"
+channels = ["f0", "key4"]
+# Global error counters
+publisher_error_count = 0
+listener_error_count = 0
+last_publisher_error = ""
+last_listener_error = ""
 
 
 def create_pubsub_clients():
-    global channel
+    global channels
     global global_client
     global listener
     global publisher
@@ -29,32 +34,53 @@ def create_pubsub_clients():
     global_client = RedisCluster(host="localhost", port=port, decode_responses=True)
     publisher = RedisCluster(host="localhost", port=port)
     listener = RedisCluster(host="localhost", port=port, decode_responses=True).pubsub()
-    listener.subscribe(channel)
+    listener.subscribe(channels)
     return publisher, listener
 
 
 def publish_messages():
-    global channel
+    global channels, publisher_error_count, last_publisher_error
     while True:
         try:
             timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-            message = f"hello_{timestamp}"
-            publisher.publish(channel, message)
-            publisher_messages.appendleft(message)
+            for idx, channel in enumerate(channels):
+                message = f"hello_from_{idx}_{timestamp}"
+                publisher.publish(channel, message)
+                publisher_messages.appendleft(message)
         except Exception as e:
             print(f"Publisher eceived error {e}")
+            publisher_error_count += 1
+            last_publisher_error = str(e)
         time.sleep(1)
 
 
 def listen_messages():
+    global listener, listener_error_count, last_listener_error
     while True:
         try:
-            msg = listener.get_message(ignore_subscribe_messages=True, timeout=None)
+            msg = listener.get_message(
+                ignore_subscribe_messages=True,
+                timeout=None,
+            )
             if msg:
                 message = msg["data"]
                 listener_messages.appendleft(message)
         except Exception as e:
             print(f"Listener received error {e}")
+            listener_error_count += 1
+            last_listener_error = str(e)
+            try:
+                listener = RedisCluster(
+                    host="localhost",
+                    port=app.config["VALKEY_PORT"],
+                    decode_responses=True,
+                ).pubsub()
+                listener.subscribe(channels)
+            except Exception as err:
+                print(f"Listener received error while trying to resubscibe: {err}")
+                listener_error_count += 1
+                last_listener_error = str(err)
+            time.sleep(1)
 
 
 @app.route("/")
@@ -80,9 +106,11 @@ async def cluster_nodes():
 
 @app.route("/channel_slot")
 async def channel_slot():
-    global channel
-    slot = get_channel_slot(channel)
-    return jsonify({"slot": slot})
+    global channels
+    slots = []
+    for channel in channels:
+        slots.append(str(get_channel_slot(channel)))
+    return jsonify({"slots": slots})
 
 
 def get_cluster_nodes():
@@ -181,6 +209,18 @@ async def before_serving():
     create_pubsub_clients()
     app.add_background_task(publish_messages)
     app.add_background_task(listen_messages)
+
+
+@app.route("/error_counts")
+async def get_error_counts():
+    return jsonify(
+        {
+            "publisher_errors": publisher_error_count,
+            "listener_errors": listener_error_count,
+            "last_publisher_error": last_publisher_error,
+            "last_listener_error": last_listener_error,
+        }
+    )
 
 
 if __name__ == "__main__":

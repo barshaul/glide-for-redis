@@ -40,7 +40,7 @@
         .messages ul {
             list-style-type: none;
             padding: 0;
-            max-height: 600px; /* Increased maximum height */
+            max-height: 375px; /* Increased maximum height */
             overflow-y: auto;  /* Enable vertical scrollbar */
         }
         .messages li {
@@ -48,7 +48,7 @@
             margin: 5px 0;
             padding: 10px;
             border-radius: 5px;
-            font-size: 0.9em; /* Adjust font size if needed */
+            font-size: 1.5em; /* Adjust font size if needed */
             white-space: nowrap; /* Prevent text from wrapping */
         }
         .gap {
@@ -63,7 +63,7 @@
             margin: 5px 0;
             padding: 10px;
             border-radius: 5px;
-            font-size: 0.9em; /* Adjust font size if needed */
+            font-size: 1.1em; /* Adjust font size if needed */
             white-space: nowrap; /* Prevent text from wrapping */
         }
         .columns {
@@ -95,6 +95,18 @@
             overflow-x: auto;
             font-family: monospace;
             font-size: 0.9em; /* Reduced font size */
+            height: 730px;
+        }
+        .message-one {
+            color: gray; /* Color for messages from hello_from_1_* */
+        }
+        .message-two {
+            color: #A52A2A; /* Color for messages from hello_from_2_* */
+        }
+        #channel-slot {
+            font-size: 1.5em; /* Adjust the size as needed */
+            font-weight: bold; /* Optionally make the text bold */
+            margin-top: 10px; /* Add some margin for better spacing */
         }
     </style>
 </head>
@@ -106,7 +118,7 @@
                 <h2>Publisher Messages</h2>
                 <ul id="publisher_messages">Loading...</ul>
             </div>
-            <div class="column messages" id="listener">
+<div class="column messages" id="listener">
                 <h2>Listener Messages</h2>
                 <ul id="listener_messages">Loading...</ul>
             </div>
@@ -117,25 +129,27 @@
         </div>
         <input type="text" id="port" placeholder="Enter port number">
         <button class="button" onclick="killPrimaryNode()">Kill Primary</button>
-        <button class="button" onclick="forceFailover()">Force Failover</button>
-        <div id="channel-slot">Loading channel slot...</div>
+        <button class="button" onclick="scaleOut()">Scale Out</button>
+        <div id="channel-slot">Loading channel slots...</div>
     </div>
     <div class="code-snapshot">
         <pre><code class="language-python">
 async def publish_messages():
-    global channel
+    global channels
     while True:
         try:
             timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-            message = f"hello_{timestamp}"
-            await publisher.publish(message, channel)
-            publisher_messages.appendleft(message)
+            for idx, channel in enumerate(channels):
+                message = f"hello_from_{idx}_{timestamp}"
+                await publisher.publish(message, channel)
+                publisher_messages.appendleft(message)
         except Exception as e:
-            print(f"Publisher received error {e}")
+            print(f"Recieved error: {e}")
         await asyncio.sleep(1)
 
 
 async def listen_messages():
+    global listener
     while True:
         try:
             msg = await listener.get_pubsub_message()
@@ -143,7 +157,7 @@ async def listen_messages():
                 message = msg.message.decode()
                 listener_messages.appendleft(message)
         except Exception as e:
-            print(f"Listener received error {e}")
+            print(f"Recieved error: {e}")
         </code></pre>
     </div>
     <script>
@@ -182,14 +196,38 @@ async def listen_messages():
             const listenerMessages = await fetchData('/listener_messages');
             const clusterNodes = await fetchData('/cluster_nodes');
             const channelSlot = await fetchData('/channel_slot');
-
+        
+        
+    
             const highlightedPublisherMessages = highlightGaps(publisherMessages);
             const highlightedListenerMessages = highlightGaps(listenerMessages);
-
-            document.getElementById('publisher_messages').innerHTML = highlightedPublisherMessages.map(msg => `<li class="message ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`).join('');
-            document.getElementById('listener_messages').innerHTML = highlightedListenerMessages.map(msg => `<li class="message ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`).join('');
+        
+            document.getElementById('publisher_messages').innerHTML = highlightedPublisherMessages.map(msg => {
+                let className = "";
+                if (msg.msg.startsWith("hello_from_0_")) {
+                    className = "message-one";
+                } else if (msg.msg.startsWith("hello_from_1_")) {
+                    className = "message-two";
+                }
+                return `<li class="message ${className} ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`;
+            }).join('');
+        
+            document.getElementById('listener_messages').innerHTML = highlightedListenerMessages.map(msg => {
+                let className = "";
+                if (msg.msg.startsWith("hello_from_0_")) {
+                    className = "message-one";
+                } else if (msg.msg.startsWith("hello_from_1_")) {
+                    className = "message-two";
+                }
+                return `<li class="message ${className} ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`;
+            }).join('');
+        
             document.getElementById('nodes-list').innerHTML = clusterNodes.nodes.map(node => `<li>${node}</li>`).join('');
-            document.getElementById('channel-slot').innerText = `Channel slot: ${channelSlot.slot}`;
+        
+            // Update channel slots with appropriate colors
+            document.getElementById('channel-slot').innerHTML = "Channel slots:<br>" + channelSlot.slots.map(slotInfo => {
+                return `<span class="${slotInfo.class}">${slotInfo.slot} - ${slotInfo.owner}</span>`;
+            }).join('<br>');
         }
 
         async function killPrimaryNode() {
@@ -205,9 +243,9 @@ async def listen_messages():
             alert(data.message || data.error);
         }
 
-        async function forceFailover() {
+        async function scaleOut() {
             const port = document.getElementById('port').value;
-            const response = await fetch('/force_failover', {
+            const response = await fetch('/scale_out', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
