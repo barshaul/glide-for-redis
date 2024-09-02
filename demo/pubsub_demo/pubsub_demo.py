@@ -32,7 +32,7 @@ cluster_info = {}
 
 publisher = None
 listener = None
-channels = set(["f111", "foo"])
+channels = set(["foo", "foo2"])
 # Global error counters
 publisher_error_count = 0
 listener_error_count = 0
@@ -66,7 +66,7 @@ async def publish_messages():
 
         for idx, channel in enumerate(channels):
             timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-            message = f"hello_from_{idx}_{timestamp}"
+            message = f"channel_{idx+1}_{timestamp}"
 
             # Define the async task with error handling
             async def publish_and_record(message, channel):
@@ -138,7 +138,9 @@ async def channel_slot():
     for idx, channel in enumerate(channels):
         slot, owner = await get_channel_slot(channel)
         color_class = "message-one" if idx % 2 == 0 else "message-two"
-        slots.append({"slot": slot, "owner": owner, "class": color_class})
+        slots.append(
+            {"channel": idx + 1, "slot": slot, "owner": owner, "class": color_class}
+        )
     return jsonify({"slots": slots})
 
 
@@ -294,8 +296,7 @@ def run_add_shard(port, cluster_folder):
 
 @app.route("/scale_out", methods=["POST"])
 async def scale_out():
-    request_data = await request.get_json()
-    port = request_data.get("port")
+    port = app.config["VALKEY_PORT"]
     if not port:
         return jsonify({"error": "Port is required"}), 400
 
@@ -315,9 +316,7 @@ async def scale_out():
         executor = ThreadPoolExecutor(max_workers=1)
         executor.submit(run_add_shard, port, absolute_path)
         return (
-            jsonify(
-                {"message": f"Shard addition initiated for cluster with port {port}"}
-            ),
+            jsonify({"message": "Shard addition initiated"}),
             200,
         )
     except Exception as e:

@@ -40,19 +40,19 @@
         .messages ul {
             list-style-type: none;
             padding: 0;
-            max-height: 375px; /* Increased maximum height */
-            overflow-y: auto;  /* Enable vertical scrollbar */
+            max-height: 375px;
+            overflow-y: auto;
         }
         .messages li {
             background: #eee;
             margin: 5px 0;
             padding: 10px;
             border-radius: 5px;
-            font-size: 1.5em; /* Adjust font size if needed */
-            white-space: nowrap; /* Prevent text from wrapping */
+            font-size: 1.5em;
+            white-space: nowrap;
         }
         .gap {
-            color: #FF69B4; /* Highlight text color */
+            color: #FF69B4;
         }
         .nodes ul {
             list-style-type: none;
@@ -63,8 +63,8 @@
             margin: 5px 0;
             padding: 10px;
             border-radius: 5px;
-            font-size: 1.1em; /* Adjust font size if needed */
-            white-space: nowrap; /* Prevent text from wrapping */
+            font-size: 1.1em;
+            white-space: nowrap;
         }
         .columns {
             display: flex;
@@ -80,45 +80,62 @@
             color: green;
         }
         .replica {
-            color: blue; /* Replica color */
+            color: blue;
         }
         .failed {
-            color: red; /* Failed node color */
+            color: red;
         }
         .code-snapshot {
             width: 70%;
             max-width: 800px;
             margin: 5px auto;
-            padding: 1.5px; /* Reduced padding */
+            padding: 1.5px;
             background-color: #f0f0f0;
             border-radius: 5px;
             overflow-x: auto;
             font-family: monospace;
-            font-size: 0.9em; /* Reduced font size */
+            font-size: 0.9em;
             height: 730px;
         }
         .message-one {
-            color: gray; /* Color for messages from hello_from_1_* */
+            color: gray;
         }
         .message-two {
-            color: #A52A2A; /* Color for messages from hello_from_2_* */
+            color: #A52A2A;
         }
         #channel-slot {
-            font-size: 1.5em; /* Adjust the size as needed */
-            font-weight: bold; /* Optionally make the text bold */
-            margin-top: 10px; /* Add some margin for better spacing */
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .input-group input {
+            margin-left: 10px;
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>PubSub Demo - Client: {{ client_type }}</h1>
+        <h1>PubSub Demo - {{ client_type }}</h1>
         <div class="columns">
             <div class="column messages" id="publisher">
                 <h2>Publisher Messages</h2>
                 <ul id="publisher_messages">Loading...</ul>
             </div>
-<div class="column messages" id="listener">
+            <div class="column messages" id="listener">
                 <h2>Listener Messages</h2>
                 <ul id="listener_messages">Loading...</ul>
             </div>
@@ -127,9 +144,13 @@
                 <ul id="nodes-list">Loading...</ul>
             </div>
         </div>
-        <input type="text" id="port" placeholder="Enter port number">
-        <button class="button" onclick="killPrimaryNode()">Kill Primary</button>
-        <button class="button" onclick="scaleOut()">Scale Out</button>
+        <div class="button-container">
+            <div class="input-group">
+                <button class="button" onclick="killPrimaryNode()">Kill Primary</button>
+                <input type="text" id="port" placeholder="Enter port number">
+            </div>
+            <button class="button" onclick="scaleOut()">Scale Out</button>
+        </div>
         <div id="channel-slot">Loading channel slots...</div>
     </div>
     <div class="code-snapshot">
@@ -140,11 +161,11 @@ async def publish_messages():
         try:
             timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
             for idx, channel in enumerate(channels):
-                message = f"hello_from_{idx}_{timestamp}"
+                message = f"channel_{idx}_{timestamp}"
                 await publisher.publish(message, channel)
                 publisher_messages.appendleft(message)
         except Exception as e:
-            print(f"Recieved error: {e}")
+            print(f"Received error: {e}")
         await asyncio.sleep(1)
 
 
@@ -157,7 +178,7 @@ async def listen_messages():
                 message = msg.message.decode()
                 listener_messages.appendleft(message)
         except Exception as e:
-            print(f"Recieved error: {e}")
+            print(f"Received error: {e}")
         </code></pre>
     </div>
     <script>
@@ -174,20 +195,17 @@ async def listen_messages():
 
             messages.forEach((msg, index) => {
                 const timestamp = new Date(`1970-01-01T${msg.split('_')[1]}Z`).getTime();
-                console.log(`Message: ${msg}, Timestamp: ${timestamp}`); // Debugging statement
                 let highlighted = false;
 
                 if (previousTimestamp !== null && (previousTimestamp - timestamp > threshold)) {
                     highlightedMessages[highlightedMessages.length - 1].gap = true;
                     highlighted = true;
-                    console.log(`Gap detected between ${previousTimestamp} and ${timestamp}`); // Debugging statement
                 }
 
                 highlightedMessages.push({ msg, gap: highlighted });
                 previousTimestamp = timestamp;
             });
 
-            console.log("Highlighted Messages:", highlightedMessages); // Debugging statement
             return highlightedMessages;
         }
 
@@ -196,37 +214,35 @@ async def listen_messages():
             const listenerMessages = await fetchData('/listener_messages');
             const clusterNodes = await fetchData('/cluster_nodes');
             const channelSlot = await fetchData('/channel_slot');
-        
-        
-    
+
             const highlightedPublisherMessages = highlightGaps(publisherMessages);
             const highlightedListenerMessages = highlightGaps(listenerMessages);
-        
+
             document.getElementById('publisher_messages').innerHTML = highlightedPublisherMessages.map(msg => {
                 let className = "";
-                if (msg.msg.startsWith("hello_from_0_")) {
+                if (msg.msg.startsWith("channel_1")) {
                     className = "message-one";
-                } else if (msg.msg.startsWith("hello_from_1_")) {
+                } else {
                     className = "message-two";
                 }
                 return `<li class="message ${className} ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`;
             }).join('');
-        
+
             document.getElementById('listener_messages').innerHTML = highlightedListenerMessages.map(msg => {
                 let className = "";
-                if (msg.msg.startsWith("hello_from_0_")) {
+                if (msg.msg.startsWith("channel_1")) {
                     className = "message-one";
-                } else if (msg.msg.startsWith("hello_from_1_")) {
+                } else {
                     className = "message-two";
                 }
                 return `<li class="message ${className} ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`;
             }).join('');
-        
+
             document.getElementById('nodes-list').innerHTML = clusterNodes.nodes.map(node => `<li>${node}</li>`).join('');
-        
-            // Update channel slots with appropriate colors
+
+            // Update channel slots with channel name, slot, and owner information
             document.getElementById('channel-slot').innerHTML = "Channel slots:<br>" + channelSlot.slots.map(slotInfo => {
-                return `<span class="${slotInfo.class}">${slotInfo.slot} - ${slotInfo.owner}</span>`;
+                return `<span class="${slotInfo.class}">Channel ${slotInfo.channel}: {Slot: ${slotInfo.slot}, Owner: ${slotInfo.owner}}</span>`;
             }).join('<br>');
         }
 
@@ -244,13 +260,11 @@ async def listen_messages():
         }
 
         async function scaleOut() {
-            const port = document.getElementById('port').value;
             const response = await fetch('/scale_out', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ port })
+                }
             });
             const data = await response.json();
             alert(data.message || data.error);
