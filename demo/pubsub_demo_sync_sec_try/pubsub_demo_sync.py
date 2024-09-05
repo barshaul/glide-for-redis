@@ -11,7 +11,6 @@ from quart import Quart, jsonify, render_template, request
 from redis.cluster import RedisCluster
 
 app = Quart(__name__)
-ip_map = {}
 
 publisher_messages = deque()
 listener_messages = deque()
@@ -58,7 +57,7 @@ def publish_messages():
 
 
 def create_new_subscriber():
-    global listener, listener_error_count
+    global new_listener, listener, listener_error_count
     while True:
         try:
             new_listener = RedisCluster(
@@ -89,11 +88,7 @@ def listen_messages():
             print(f"Listener received error {e}")
             listener_error_count += 1
             last_listener_error = str(e)
-            try:
-                listener.subscribe(channels)
-            except Exception:
-                pass
-            time.sleep(1)
+            create_new_subscriber()
 
 
 @app.route("/")
@@ -182,32 +177,34 @@ def get_channel_slot(channel):
         if "slots" in data:
             for slot_range in data["slots"]:
                 if int(slot_range[0]) <= slot <= int(slot_range[1]):
-                    return (str(slot), ip_map[str(address)])
+                    return (str(slot), str(address))
     return None
 
 
-def generate_made_up_ip(ip_port, start_ip):
-    global ip_map
+def generate_made_up_ip(ip_map, ip_port, start_ip):
+    # Split out the port from the ip_port
+    ip, port = ip_port.split(":")
+
     # If this IP has already been mapped, return the mapped IP
-    if ip_port in ip_map:
-        return ip_map[ip_port]
+    if ip in ip_map:
+        return f"{ip_map[ip]}:{port}"
 
     # Otherwise, map it to the next IP in the subnet
-    new_ip = f"54.123.{start_ip + len(ip_map)}.{start_ip % 255}"  # Example IP range
-    ip, port = ip_port.split(":")
-    new_address = f"{'valkey'}:{port}"
-    ip_map[ip_port] = new_address
-    return new_address
+    new_ip = f"192.168.1.{start_ip + len(ip_map)}"
+    ip_map[ip] = new_ip
+
+    return f"{new_ip}:{port}"
 
 
 def parse_cluster_nodes(nodes_dict):
     shards = {}
     failed_nodes = []
+    ip_map = {}  # To store mappings of original IPs to made-up IPs
     start_ip = 100  # Starting number for the last part of the IP (e.g., 192.168.1.100)
 
     for ip_port, node_info in nodes_dict.items():
         # Generate a made-up IP
-        made_up_ip_port = generate_made_up_ip(ip_port, start_ip)
+        made_up_ip_port = generate_made_up_ip(ip_map, ip_port, start_ip)
 
         node_id = node_info["node_id"]
         flags = node_info["flags"].split(",")
@@ -218,41 +215,35 @@ def parse_cluster_nodes(nodes_dict):
         if shard_id not in shards:
             shards[shard_id] = {"slots": slots, "primary": "", "replicas": []}
 
-        if "fail" in flags:
-            health = "failed"
-        elif "fail?" in flags:
-            health = "some problems"
-        else:
-            health = "healthy"
-
+        health = "healthy" if node_info["connected"] else "failed"
         if "master" in flags or "myself,master" in flags:
             if health == "failed":
                 failed_nodes.append(
-                    f'<span class="failed">primary {made_up_ip_port} {health}</span>'
+                    f'<span class="failed">{made_up_ip_port} {health}</span>'
                 )
+
             else:
                 shards[shard_id]["primary"] = f"{made_up_ip_port} {health}"
                 shards[shard_id]["slots"] = slots
         else:
             shards[shard_id]["replicas"].append(
-                f'<span class="replica">replica {made_up_ip_port} {health}</span>'
+                f'<span class="replica">{made_up_ip_port} {health}</span>'
             )
 
     result = []
-    shard_index = 1  # Start shard indexing from 1
-
-    for shard_info in shards.values():
-        if shard_info["primary"] and "failed" not in shard_info["primary"]:
-            slot_str = ", ".join(f"{start}-{end}" for start, end in shard_info["slots"])
-            result.append(
-                f"<strong>---<br>Shard {shard_index} Slots {slot_str}</strong>"
+    for idx, (shard_id, shard_info) in enumerate(shards.items(), start=1):
+        if shard_info["primary"] and "healthy" in shard_info["primary"]:
+            slots = (
+                ", ".join([f"{slot[0]}-{slot[1]}" for slot in shard_info["slots"]])
+                if shard_info["slots"]
+                else "None"
             )
+            result.append(f"<strong>---<br>Shard {idx} Slots {slots}</strong>")
             result.append(
                 f'<span class="primary">primary {shard_info["primary"]}</span>'
             )
             for replica in shard_info["replicas"]:
-                result.append(f"{replica}")
-            shard_index += 1  # Increment the shard index for the next shard
+                result.append(f'<span class="replica">replica {replica}</span>')
 
     if failed_nodes:
         result.append("<strong>---<br>Failed Nodes</strong>")
@@ -320,4 +311,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     app.config["VALKEY_PORT"] = args.port
     app.config["CLIENT_TYPE"] = args.client
-    app.run(debug=True, port=4000, host="0.0.0.0")
+    app.run(debug=True, port=3000, host="0.0.0.0")

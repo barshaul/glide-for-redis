@@ -34,7 +34,7 @@
         .button {
             margin-top: 10px;
             padding: 10px 20px;
-            font-size: 1.5em; /* Increase the font size */
+            font-size: 1em;
             cursor: pointer;
         }
         .messages ul {
@@ -76,77 +76,20 @@
             margin: 10px;
             min-width: 200px;
         }
-/* Main layout: Messages and Controls on the left, Cluster Nodes on the right */
-        .main-layout {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            width: 100%;
-        }
-        
-        /* Messages and Controls on the left */
-        .messages-and-controls {
-            flex: 2; /* Make this section wider than the Cluster Nodes */
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .columns {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-        }
-        
-        .controls {
-            margin-top: 20px; /* Adds spacing between the message queues and the controls */
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start; /* Align buttons and slot info to the left */
-        }
-        
-        .button-container {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        
-        .input-group {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .input-group input {
-            margin-left: 10px;
-            padding: 10px;
-            font-size: 1em;
-        }
-        
-        /* Cluster Nodes on the right */
-        .cluster-nodes-container {
-            flex: 1; /* Make the cluster nodes container narrower */
-            margin-left: 20px; /* Space between messages and cluster nodes */
-        }
-        
-        .nodes {
-            background-color: #f5f5f5; /* Same background as the rest of the page */
-            padding: 10px;
-            border-radius: 5px;
-        }
         .primary {
             color: green;
         }
         .replica {
-            color: blue;
+            color: blue; /* Replica color */
         }
         .failed {
-            color: red;
+            color: red; /* Failed node color */
         }
         .code-snapshot {
             width: 70%;
             max-width: 800px;
             margin: 5px auto;
-            padding: 1.5px;
+            padding: 1.5px; /* Reduced padding */
             background-color: #f0f0f0;
             border-radius: 5px;
             overflow-x: auto;
@@ -165,7 +108,13 @@
             font-weight: bold;
             margin-top: 10px;
         }
-                .input-group {
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .input-group {
             display: flex;
             align-items: center;
             margin-bottom: 10px;
@@ -176,29 +125,31 @@
             font-size: 1em;
             margin-top: 10px;
         }
+        .error-counter {
+            font-size: 1.3em; /* Adjust the size as needed */
+            font-weight: bold; /* Optional for making it bolder */
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>PubSub Demo - Client: {{ client_type }}</h1>
-
-        <!-- Main Layout: Messages and Controls on the left, Cluster Nodes on the right -->
-        <div class="main-layout">
-            <!-- Messages and Controls (on the left) -->
-            <div class="messages-and-controls">
+        <h1>PubSub Demo - Client: {{ client_type }} - Second Try</h1>
         <div class="columns">
             <div class="column messages" id="publisher">
                 <h2>Publisher Messages</h2>
                 <ul id="publisher_messages">Loading...</ul>
+                <div class="error-counter">Publisher Errors: <span id="publisher_error_count">0</span></div>
             </div>
             <div class="column messages" id="listener">
                 <h2>Subscriber Messages</h2>
                 <ul id="listener_messages">Loading...</ul>
+                <div class="error-counter">Subscriber Errors: <span id="listener_error_count">0</span></div>
             </div>
-                    </div>
-
-                <!-- Control Buttons and Channel Slot Information -->
-                <div class="controls">
+            <div class="column nodes">
+                <h2>Cluster Nodes</h2>
+                <ul id="nodes-list">Loading...</ul>
+            </div>
+        </div>
         <div class="button-container">
             <div class="input-group">
                 <button class="button" onclick="killPrimaryNode()">Kill Primary</button>
@@ -207,44 +158,48 @@
             <button class="button" onclick="scaleOut()">Scale Out</button>
         </div>
         <div id="channel-slot">Loading channel slots...</div>
-</div>
-            </div>
-    
-            <!-- Cluster Nodes (on the right) -->
-            <div class="cluster-nodes-container">
-                <div class="column nodes">
-                    <h2>Cluster Nodes</h2>
-                    <ul id="nodes-list">Loading...</ul>
-                </div>
-            </div>
-        </div>
     </div>
     <div class="code-snapshot">
         <pre><code class="language-python">
-async def publish_messages():
-    global channels
+def publish_messages():
+    global channels, publisher_error_count
     while True:
         try:
             timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
             for idx, channel in enumerate(channels):
-                message = f"channel_{idx}_{timestamp}"
-                await publisher.publish(message, channel)
-                publisher_messages.appendleft(message)
+                message = f"channel_{idx+1}_{timestamp}"
+            publisher.publish(channel, message)
+            publisher_messages.appendleft(message)
         except Exception as e:
-            print(f"Received error: {e}")
-        await asyncio.sleep(1)
+        print(f"Publisher received error {e}")
+            publisher_error_count += 1
+        time.sleep(1)
 
-
-async def listen_messages():
-    global listener
+def create_new_subscriber() -> PubSubClient:
+    global channels, subscriber_error_count, host, port
     while True:
         try:
-            msg = await listener.get_pubsub_message()
-            if msg:
-                message = msg.message.decode()
-                listener_messages.appendleft(message)
+            new_subscriber = other_client.create(host, port).pubsub()
+            new_subscriber.subscribe(channels)
+            return new_subscriber
         except Exception as e:
-            print(f"Received error: {e}")
+            print(f"Failed to create subsriber {e}")
+            subscriber_error_count += 1
+            time.sleep(0.5)
+
+
+def listen_on_channels():
+    global subscriber, subscriber_error_count
+    while True:
+        try:
+            msg = subscriber.get_message()
+            if msg:
+                message = msg["data"]
+                subscriber.appendleft(message)
+        except Exception as e:
+            print(f"Subscriber received error {e}")
+            subscriber_error_count += 1
+            subscriber = create_new_subscriber()
         </code></pre>
     </div>
     <script>
@@ -261,17 +216,20 @@ async def listen_messages():
 
             messages.forEach((msg, index) => {
                 const timestamp = new Date(`1970-01-01T${msg.split('_')[1]}Z`).getTime();
+                console.log(`Message: ${msg}, Timestamp: ${timestamp}`); // Debugging statement
                 let highlighted = false;
 
                 if (previousTimestamp !== null && (previousTimestamp - timestamp > threshold)) {
                     highlightedMessages[highlightedMessages.length - 1].gap = true;
                     highlighted = true;
+                    console.log(`Gap detected between ${previousTimestamp} and ${timestamp}`); // Debugging statement
                 }
 
                 highlightedMessages.push({ msg, gap: highlighted });
                 previousTimestamp = timestamp;
             });
 
+            console.log("Highlighted Messages:", highlightedMessages); // Debugging statement
             return highlightedMessages;
         }
 
@@ -280,6 +238,13 @@ async def listen_messages():
             const listenerMessages = await fetchData('/listener_messages');
             const clusterNodes = await fetchData('/cluster_nodes');
             const channelSlot = await fetchData('/channel_slot');
+
+            const errorCounts = await fetchData('/error_counts');
+
+            document.getElementById('publisher_error_count').innerText = errorCounts.publisher_errors;
+            document.getElementById('listener_error_count').innerText = errorCounts.listener_errors;
+
+
 
             const highlightedPublisherMessages = highlightGaps(publisherMessages);
             const highlightedListenerMessages = highlightGaps(listenerMessages);
@@ -293,7 +258,7 @@ async def listen_messages():
                 }
                 return `<li class="message ${className} ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`;
             }).join('');
-
+            
             document.getElementById('listener_messages').innerHTML = highlightedListenerMessages.map(msg => {
                 let className = "";
                 if (msg.msg.startsWith("channel_1")) {
@@ -305,7 +270,7 @@ async def listen_messages():
             }).join('');
 
             document.getElementById('nodes-list').innerHTML = clusterNodes.nodes.map(node => `<li>${node}</li>`).join('');
-
+            
             // Update channel slots with channel name, slot, and owner information
             document.getElementById('channel-slot').innerHTML = "Channel slots:<br>" + channelSlot.slots.map(slotInfo => {
                 return `<span class="${slotInfo.class}">Channel ${slotInfo.channel}: {Slot: ${slotInfo.slot}, Owner: ${slotInfo.owner}}</span>`;

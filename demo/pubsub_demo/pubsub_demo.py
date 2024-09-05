@@ -25,7 +25,7 @@ Logger.set_logger_config(LogLevel.INFO)
 PubSubChannelModes = GlideClusterClientConfiguration.PubSubChannelModes
 PubSubSubscriptions = GlideClusterClientConfiguration.PubSubSubscriptions
 app = Quart(__name__)
-
+ip_map = {}
 publisher_messages = deque()
 listener_messages = deque()
 cluster_info = {}
@@ -188,18 +188,34 @@ async def get_channel_slot(channel):
         if slot_owner:
             break
 
-    return (int(slot), slot_owner)
+    return (int(slot), ip_map[slot_owner])
+
+
+def generate_made_up_ip(ip_port, start_ip):
+    global ip_map
+    # If this IP has already been mapped, return the mapped IP
+    if ip_port in ip_map:
+        return ip_map[ip_port]
+
+    # Otherwise, map it to the next IP in the subnet
+    new_ip = f"54.123.{start_ip + len(ip_map)}.{start_ip % 255}"  # Example IP range
+    ip, port = ip_port.split(":")
+    new_address = f"{'valkey'}:{port}"
+    ip_map[ip_port] = new_address
+    return new_address
 
 
 def parse_cluster_nodes(nodes_str):
     nodes = nodes_str.strip().split("\n")
     shards = {}
     failed_nodes = []
+    start_ip = 200  # Starting number for the last part of the IP (e.g., 192.168.1.100)
 
     for node in nodes:
         parts = node.split()
         node_id = parts[0]
         ip_port = parts[1].split("@")[0]  # Remove the @suffix
+        made_up_ip_port = generate_made_up_ip(ip_port, start_ip)
         flags = parts[2].split(",")
         master_id = parts[3]
         slot_ranges = parts[8:] if len(parts) > 8 else []
@@ -208,25 +224,31 @@ def parse_cluster_nodes(nodes_str):
         if shard_id not in shards:
             shards[shard_id] = {"slots": [], "primary": "", "replicas": []}
 
-        health = "healthy" if "fail" not in flags else "failed"
+        if "fail" in flags:
+            health = "failed"
+        elif "fail?" in flags:
+            health = "some problems"
+        else:
+            health = "healthy"
         if "master" in flags:
             if health == "failed":
                 failed_nodes.append(
-                    f'<span class="failed">primary {ip_port} {health}</span>'
+                    f'<span class="failed">primary {made_up_ip_port} {health}</span>'
                 )
             else:
-                shards[shard_id]["primary"] = f"{ip_port} {health}"
+                shards[shard_id]["primary"] = f"{made_up_ip_port} {health}"
                 shards[shard_id]["slots"].extend(slot_ranges)
+                print(shards[shard_id]["slots"])
         else:
             shards[shard_id]["replicas"].append(
-                f'<span class="replica">replica {ip_port} {health}</span>'
+                f'<span class="replica">replica {made_up_ip_port} {health}</span>'
             )
 
     result = []
     shard_index = 1  # Start shard indexing from 1
 
     for shard_info in shards.values():
-        if shard_info["primary"] and "healthy" in shard_info["primary"]:
+        if shard_info["primary"] and "failed" not in shard_info["primary"]:
             slot_str = " ".join(shard_info["slots"])  # Combine all slot ranges
             result.append(
                 f"<strong>---<br>Shard {shard_index} Slots {slot_str}</strong>"

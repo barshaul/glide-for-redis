@@ -34,25 +34,25 @@
         .button {
             margin-top: 10px;
             padding: 10px 20px;
-            font-size: 1em;
+            font-size: 1.5em; /* Increase the font size */
             cursor: pointer;
         }
         .messages ul {
             list-style-type: none;
             padding: 0;
-            max-height: 600px; /* Increased maximum height */
-            overflow-y: auto;  /* Enable vertical scrollbar */
+            max-height: 375px;
+            overflow-y: auto;
         }
         .messages li {
             background: #eee;
             margin: 5px 0;
             padding: 10px;
             border-radius: 5px;
-            font-size: 0.9em; /* Adjust font size if needed */
-            white-space: nowrap; /* Prevent text from wrapping */
+            font-size: 1.5em;
+            white-space: nowrap;
         }
         .gap {
-            color: #FF69B4; /* Highlight text color */
+            color: #FF69B4;
         }
         .nodes ul {
             list-style-type: none;
@@ -63,8 +63,8 @@
             margin: 5px 0;
             padding: 10px;
             border-radius: 5px;
-            font-size: 0.9em; /* Adjust font size if needed */
-            white-space: nowrap; /* Prevent text from wrapping */
+            font-size: 1.1em;
+            white-space: nowrap;
         }
         .columns {
             display: flex;
@@ -75,6 +75,63 @@
             flex: 1;
             margin: 10px;
             min-width: 200px;
+        }
+        /* Main layout: Messages and Controls on the left, Cluster Nodes on the right */
+        .main-layout {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+        }
+        
+        /* Messages and Controls on the left */
+        .messages-and-controls {
+            flex: 2; /* Make this section wider than the Cluster Nodes */
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .columns {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        
+        .controls {
+            margin-top: 20px; /* Adds spacing between the message queues and the controls */
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* Align buttons and slot info to the left */
+        }
+        
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .input-group input {
+            margin-left: 10px;
+            padding: 10px;
+            font-size: 1em;
+        }
+        
+        /* Cluster Nodes on the right */
+        .cluster-nodes-container {
+            flex: 1; /* Make the cluster nodes container narrower */
+            margin-left: 20px; /* Space between messages and cluster nodes */
+        }
+        
+        .nodes {
+            background-color: #f5f5f5; /* Same background as the rest of the page */
+            padding: 10px;
+            border-radius: 5px;
         }
         .primary {
             color: green;
@@ -94,56 +151,104 @@
             border-radius: 5px;
             overflow-x: auto;
             font-family: monospace;
-            font-size: 0.9em; /* Reduced font size */
+            font-size: 0.9em;
+            height: 730px;
+        }
+        .message-one {
+            color: gray;
+        }
+        .message-two {
+            color: #A52A2A;
+        }
+        #channel-slot {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .input-group input {
+            margin-left: 10px;
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        .error-counter {
+            font-size: 1.3em; /* Adjust the size as needed */
+            font-weight: bold; /* Optional for making it bolder */
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>PubSub Demo - Client: {{ client_type }}</h1>
-        <div class="columns">
-            <div class="column messages" id="publisher">
-                <h2>Publisher Messages</h2>
-                <ul id="publisher_messages">Loading...</ul>
+    
+        <!-- Main Layout: Messages and Controls on the left, Cluster Nodes on the right -->
+        <div class="main-layout">
+            <!-- Messages and Controls (on the left) -->
+            <div class="messages-and-controls">
+                <div class="columns">
+                    <div class="column messages" id="publisher">
+                        <h2>Publisher Messages</h2>
+                        <ul id="publisher_messages">Loading...</ul>
+                    </div>
+                    <div class="column messages" id="listener">
+                        <h2>Subscriber Messages</h2>
+                        <ul id="listener_messages">Loading...</ul>
+                    </div>
+                </div>
+    
+                <!-- Control Buttons and Channel Slot Information -->
+                <div class="controls">
+                    <div class="button-container">
+                        <div class="input-group">
+                            <button class="button" onclick="killPrimaryNode()">Kill Primary</button>
+                            <input type="text" id="port" placeholder="Enter port number">
+                        </div>
+                        <button class="button" onclick="scaleOut()">Scale Out</button>
+                    </div>
+                    <div id="channel-slot">Loading channel slots...</div>
+                </div>
             </div>
-            <div class="column messages" id="listener">
-                <h2>Listener Messages</h2>
-                <ul id="listener_messages">Loading...</ul>
-            </div>
-            <div class="column nodes">
-                <h2>Cluster Nodes</h2>
-                <ul id="nodes-list">Loading...</ul>
+    
+            <!-- Cluster Nodes (on the right) -->
+            <div class="cluster-nodes-container">
+                <div class="column nodes">
+                    <h2>Cluster Nodes</h2>
+                    <ul id="nodes-list">Loading...</ul>
+                </div>
             </div>
         </div>
-        <input type="text" id="port" placeholder="Enter port number">
-        <button class="button" onclick="killPrimaryNode()">Kill Primary</button>
-        <button class="button" onclick="forceFailover()">Force Failover</button>
-        <div id="channel-slot">Loading channel slot...</div>
     </div>
     <div class="code-snapshot">
         <pre><code class="language-python">
 def publish_messages():
-    global channel
+    global channels
     while True:
         try:
             timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-            message = f"hello_{timestamp}"
+            for idx, channel in enumerate(channels):
+                message = f"channel_{idx+1}_{timestamp}"
             publisher.publish(channel, message)
             publisher_messages.appendleft(message)
         except Exception as e:
             print(f"Publisher received error {e}")
         time.sleep(1)
 
-
-def listen_messages():
+def listen_on_channels():
+    global subscriber
     while True:
         try:
-            msg = listener.get_message(ignore_subscribe_messages=True, timeout=None)
+            msg = subscriber.get_message()
             if msg:
                 message = msg["data"]
-                listener_messages.appendleft(message)
+                subscriber_messages.appendleft(message)
         except Exception as e:
-            print(f"Listener received error {e}")
+            print(f"Subscriber received error {e}")
+            subscriber.subscribe(channels)
         </code></pre>
     </div>
     <script>
@@ -183,13 +288,39 @@ def listen_messages():
             const clusterNodes = await fetchData('/cluster_nodes');
             const channelSlot = await fetchData('/channel_slot');
 
+            const errorCounts = await fetchData('/error_counts');
+
+
+
             const highlightedPublisherMessages = highlightGaps(publisherMessages);
             const highlightedListenerMessages = highlightGaps(listenerMessages);
 
-            document.getElementById('publisher_messages').innerHTML = highlightedPublisherMessages.map(msg => `<li class="message ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`).join('');
-            document.getElementById('listener_messages').innerHTML = highlightedListenerMessages.map(msg => `<li class="message ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`).join('');
+            document.getElementById('publisher_messages').innerHTML = highlightedPublisherMessages.map(msg => {
+                let className = "";
+                if (msg.msg.startsWith("channel_1")) {
+                    className = "message-one";
+                } else {
+                    className = "message-two";
+                }
+                return `<li class="message ${className} ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`;
+            }).join('');
+            
+            document.getElementById('listener_messages').innerHTML = highlightedListenerMessages.map(msg => {
+                let className = "";
+                if (msg.msg.startsWith("channel_1")) {
+                    className = "message-one";
+                } else {
+                    className = "message-two";
+                }
+                return `<li class="message ${className} ${msg.gap ? 'gap' : ''}">${msg.msg}</li>`;
+            }).join('');
+
             document.getElementById('nodes-list').innerHTML = clusterNodes.nodes.map(node => `<li>${node}</li>`).join('');
-            document.getElementById('channel-slot').innerText = `Channel slot: ${channelSlot.slot}`;
+            
+            // Update channel slots with channel name, slot, and owner information
+            document.getElementById('channel-slot').innerHTML = "Channel slots:<br>" + channelSlot.slots.map(slotInfo => {
+                return `<span class="${slotInfo.class}">Channel ${slotInfo.channel}: {Slot: ${slotInfo.slot}, Owner: ${slotInfo.owner}}</span>`;
+            }).join('<br>');
         }
 
         async function killPrimaryNode() {
@@ -205,14 +336,12 @@ def listen_messages():
             alert(data.message || data.error);
         }
 
-        async function forceFailover() {
-            const port = document.getElementById('port').value;
-            const response = await fetch('/force_failover', {
+        async function scaleOut() {
+            const response = await fetch('/scale_out', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ port })
+                }
             });
             const data = await response.json();
             alert(data.message || data.error);
