@@ -143,6 +143,8 @@
             color: red;
         }
         .code-snapshot {
+            position: relative; /* Makes it relative to its normal position */
+            top: 400px; 
             width: 70%;
             max-width: 800px;
             margin: 5px auto;
@@ -231,20 +233,20 @@ async def publish_messages():
                 await publisher.publish(message, channel)
                 publisher_messages.appendleft(message)
         except Exception as e:
-            print(f"Received error: {e}")
+            print(f"Publisher received error: {e}")
         await asyncio.sleep(1)
 
 
-async def listen_messages():
-    global listener
+async def listen_on_channels():
+    global subscriber
     while True:
         try:
-            msg = await listener.get_pubsub_message()
+            msg = await subscriber.get_pubsub_message()
             if msg:
                 message = msg.message.decode()
-                listener_messages.appendleft(message)
+                subscriber_messages.appendleft(message)
         except Exception as e:
-            print(f"Received error: {e}")
+            print(f"Subscriber received error: {e}")
         </code></pre>
     </div>
     <script>
