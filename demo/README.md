@@ -1,5 +1,27 @@
 # Demo - Getting started
+# PubSub Demo
 
+## Run the demo
+```
+cd demo
+./demo_util.sh --run
+```
+
+## Stop and cleanup the demo 
+```
+cd demo
+./demo_util.sh --stop
+```
+
+## Open Glide's html view in a browser: 
+http://<host>:5000
+
+
+## Open Other's html view in a browser: 
+http://<host>:4000
+
+
+# Throughput Demo
 ## Create a cluster
 ```
 python3 utils/cluster_manager.py start --cluster-mode -n 3 -r 2
