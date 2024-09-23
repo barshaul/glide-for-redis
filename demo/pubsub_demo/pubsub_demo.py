@@ -312,7 +312,7 @@ async def get_error_counts():
 
 
 def run_add_shard(port, cluster_folder):
-    command = f"python3 ../../utils/cluster_manager.py add_shard --existing-port={port} --replica-count=2 --cluster-folder={cluster_folder}"
+    command = f"python3 /home/ubuntu/glide-for-redis/utils/cluster_manager.py add_shard --existing-port={port} --replica-count=2 --cluster-folder={cluster_folder}"
     os.system(command)
 
 
@@ -324,7 +324,7 @@ async def scale_out():
 
     try:
         # Find the last folder in ../utils/clusters/
-        clusters_dir = Path("../../utils/clusters/")
+        clusters_dir = Path("/home/ubuntu/glide-for-redis/utils/clusters/")
         cluster_folders = sorted(
             clusters_dir.iterdir(), key=lambda x: x.stat().st_mtime
         )

@@ -81,6 +81,7 @@ stop() {
 
 # Main script logic
 if [ "$1" == "--run" ]; then
+    stop
     run
 elif [ "$1" == "--stop" ]; then
     stop
