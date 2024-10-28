@@ -2364,17 +2364,19 @@ where
         loop {
             self.send_refresh_error();
 
-            if let Err(err) = ready!(self.as_mut().poll_recover(cx)) {
-                // We failed to reconnect, while we will try again we will report the
-                // error if we can to avoid getting trapped in an infinite loop of
-                // trying to reconnect
-                self.refresh_error = Some(err);
+            match self.as_mut().poll_recover(cx) {
+                Poll::Ready(Ok(_)) | Poll::Pending => {} // do nothing, continue to poll_complete
+                Poll::Ready(Err(err)) => {
+                    // We failed to reconnect, while we will try again we will report the
+                    // error if we can to avoid getting trapped in an infinite loop of
+                    // trying to reconnect
+                    self.refresh_error = Some(err);
 
-                // Give other tasks a chance to progress before we try to recover
-                // again. Since the future may not have registered a wake up we do so
-                // now so the task is not forgotten
-                cx.waker().wake_by_ref();
-                return Poll::Pending;
+                    // Give other tasks a chance to progress before we try to recover
+                    // again. Since the future may not have registered a wake up we do so
+                    // now so the task is not forgotten
+                    cx.waker().wake_by_ref();
+                }
             }
 
             match ready!(self.poll_complete(cx)) {
