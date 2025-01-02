@@ -6,12 +6,13 @@ from __future__ import annotations
 import asyncio
 import copy
 import math
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union, cast
 
 import pytest
-from glide import ClosingError, RequestError, Script
+from glide import ClosingError, NodeAddress, RequestError, Script
 from glide.async_commands.bitmap import (
     BitFieldGet,
     BitFieldIncrBy,
@@ -91,6 +92,7 @@ from glide.routes import (
     SlotKeyRoute,
     SlotType,
 )
+from glide.glide_client_sync import SyncClient
 from tests.conftest import create_client
 from tests.utils.utils import (
     check_function_list_response,
@@ -10084,6 +10086,20 @@ class TestClusterRoutes:
         # Negative count
         with pytest.raises(RequestError):
             await glide_client.sscan(key2, initial_cursor, count=-1)
+            
+    def test_sync_set_get_works_with_multithreaded(self):
+        def worker(client):
+            assert client.set("foo", "bar") == OK
+            assert client.get("foo") == b"bar"
+
+        config = GlideClientConfiguration([NodeAddress("localhost", 6379)])
+        client = SyncClient.create(config)
+        thread1 = threading.Thread(target=worker, args=(client,))
+        thread2 = threading.Thread(target=worker, args=(client,))
+        thread1.start()
+        thread2.start()
+        thread1.join()
+        thread2.join()
 
     @pytest.mark.parametrize("cluster_mode", [True, False])
     @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP2, ProtocolVersion.RESP3])

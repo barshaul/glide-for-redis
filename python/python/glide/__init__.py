@@ -152,6 +152,7 @@ from glide.exceptions import (
     TimeoutError,
 )
 from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
+from glide.glide_client_sync import SyncClient
 from glide.logger import Level as LogLevel
 from glide.logger import Logger
 from glide.routes import (
@@ -171,6 +172,7 @@ PubSubMsg = CoreCommands.PubSubMsg
 
 __all__ = [
     # Client
+    "SyncClient",
     "GlideClient",
     "GlideClusterClient",
     "Transaction",
