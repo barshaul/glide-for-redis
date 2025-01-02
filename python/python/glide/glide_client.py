@@ -77,7 +77,7 @@ class BaseClient(CoreCommands):
         self._pending_push_notifications: List[Response] = list()
 
     @classmethod
-    async def create(cls, config: BaseClientConfiguration) -> Self:
+    async def create(cls, config: BaseClientConfiguration, loop = None) -> Self:
         """Creates a Glide client.
 
         Args:
@@ -90,8 +90,8 @@ class BaseClient(CoreCommands):
         config = config
         self = cls(config)
         init_future: asyncio.Future = asyncio.Future()
-        loop = asyncio.get_event_loop()
-
+        loop = loop if loop else asyncio.get_event_loop()
+        self.loop = loop
         def init_callback(socket_path: Optional[str], err: Optional[str]):
             if err is not None:
                 raise ClosingError(err)
@@ -105,18 +105,22 @@ class BaseClient(CoreCommands):
                 loop.call_soon_threadsafe(init_future.set_result, True)
 
         start_socket_listener_external(init_callback=init_callback)
-
-        # will log if the logger was created (wrapper or costumer) on info
-        # level or higher
-        ClientLogger.log(LogLevel.INFO, "connection info", "new connection established")
-        # Wait for the socket listener to complete its initialization
-        await init_future
-        # Create UDS connection
-        await self._create_uds_connection()
+        async def wait_for_callback_create_conn():
+            # will log if the logger was created (wrapper or costumer) on info
+            # level or higher
+            ClientLogger.log(LogLevel.INFO, "connection info", "new connection established")
+            # Wait for the socket listener to complete its initialization
+            await init_future
+            # Create UDS connection
+            await self._create_uds_connection()
         # Start the reader loop as a background task
-        self._reader_task = asyncio.create_task(self._reader_loop())
+        future = asyncio.run_coroutine_threadsafe(wait_for_callback_create_conn(), loop)
+        future.result()
+        # Run the reader task on the event loop without awaiting for it
+        self._reader_task = asyncio.run_coroutine_threadsafe(self._reader_loop(), self.loop)
         # Set the client configurations
-        await self._set_connection_configurations()
+        future = asyncio.run_coroutine_threadsafe(self._set_connection_configurations(), loop)
+        future.result()
         return self
 
     async def _create_uds_connection(self) -> None:
