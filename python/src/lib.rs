@@ -159,10 +159,11 @@ fn glide(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     fn py_init(level: Option<Level>, file_name: Option<&str>) -> Level {
         init(level, file_name)
     }
+
     #[pyfunction]
     fn start_socket_listener_external(init_callback: PyObject) -> PyResult<PyObject> {
         let init_callback = Arc::new(init_callback);
-        start_socket_listener({
+        let socket_path = start_socket_listener({
             let init_callback = Arc::clone(&init_callback);
             move |socket_path| {
                 let init_callback = Arc::clone(&init_callback);
@@ -178,7 +179,7 @@ fn glide(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
                 });
             }
         });
-        Ok(Python::with_gil(|py| "OK".into_py(py)))
+        Ok(Python::with_gil(|py| socket_path.into_py(py)))
     }
 
     fn iter_to_value<TIterator>(

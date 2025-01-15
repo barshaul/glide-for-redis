@@ -1386,7 +1386,10 @@ where
             tasks.push(async move {
                 let node_option = if check_existing_conn {
                     let connections_container = inner.conn_lock.read().expect(MUTEX_READ_ERR);
-                    connections_container.remove_node(&address)
+                    connections_container
+                        .connection_map()
+                        .get(&address)
+                        .map(|node| node.value().clone())
                 } else {
                     None
                 };

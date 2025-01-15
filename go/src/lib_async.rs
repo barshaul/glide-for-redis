@@ -2,14 +2,19 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 use glide_core::client::Client as GlideClient;
+use glide_core::command_request::SimpleRoutes;
+use glide_core::command_request::{Routes, SlotTypes};
 use glide_core::connection_request;
 use glide_core::errors;
 use glide_core::errors::RequestErrorType;
 use glide_core::request_type::RequestType;
 use glide_core::ConnectionRequest;
-use glide_core::client::{NodeAddress, TlsMode};
 use protobuf::Message;
-use redis::{RedisResult, Value};
+use redis::cluster_routing::{
+    MultipleNodeRoutingInfo, Route, RoutingInfo, SingleNodeRoutingInfo, SlotAddr,
+};
+use redis::cluster_routing::{ResponsePolicy, Routable};
+use redis::{Cmd, RedisResult, Value};
 use std::slice::from_raw_parts;
 use std::{
     ffi::{c_void, CString},
@@ -113,27 +118,34 @@ pub type FailureCallback = unsafe extern "C" fn(
     error_type: RequestErrorType,
 ) -> ();
 
-    /// The connection response.
-    ///
-    /// It contains either a connection or an error. It is represented as a struct instead of a union for ease of use in the wrapper language.
-    ///
-    /// The struct is freed by the external caller by using `free_connection_response` to avoid memory leaks.
-    #[repr(C)]
-    pub struct ConnectionResponse {
-        conn_ptr: *const c_void,
-        connection_error_message: *const c_char,
-    }
+/// The connection response.
+///
+/// It contains either a connection or an error. It is represented as a struct instead of a union for ease of use in the wrapper language.
+///
+/// The struct is freed by the external caller by using `free_connection_response` to avoid memory leaks.
+#[repr(C)]
+pub struct ConnectionResponse {
+    conn_ptr: *const c_void,
+    connection_error_message: *const c_char,
+}
 
 /// A `GlideClient` adapter.
 // TODO: Remove allow(dead_code) once connection logic is implemented
 #[allow(dead_code)]
 pub struct ClientAdapter {
     client: GlideClient,
+    success_callback: SuccessCallback,
+    failure_callback: FailureCallback,
     runtime: Runtime,
 }
 
 fn create_client_internal(
+    connection_request_bytes: &[u8],
+    success_callback: SuccessCallback,
+    failure_callback: FailureCallback,
 ) -> Result<ClientAdapter, String> {
+    let request = connection_request::ConnectionRequest::parse_from_bytes(connection_request_bytes)
+        .map_err(|err| err.to_string())?;
     // TODO: optimize this using multiple threads instead of a single worker thread (e.g. by pinning each go thread to a rust thread)
     let runtime = Builder::new_multi_thread()
         .enable_all()
@@ -144,17 +156,13 @@ fn create_client_internal(
             let redis_error = err.into();
             errors::error_message(&redis_error)
         })?;
-    let addresses = vec![NodeAddress { host: "clustercfg.barshaul-babushka-cluster-test-tls-1.ez432c.use1.cache.amazonaws.com".to_string(), port: 6379}];
-    let use_tls = true;
     let client = runtime
-        .block_on(GlideClient::new(ConnectionRequest {addresses, tls_mode: if use_tls {
-            Some(TlsMode::SecureTls)
-        } else {
-            Some(TlsMode::NoTls)
-        }, cluster_mode_enabled: true, ..Default::default()}, None))
+        .block_on(GlideClient::new(ConnectionRequest::from(request), None))
         .map_err(|err| err.to_string())?;
     Ok(ClientAdapter {
         client,
+        success_callback,
+        failure_callback,
         runtime,
     })
 }
@@ -177,10 +185,15 @@ fn create_client_internal(
 /// * Both the `success_callback` and `failure_callback` function pointers need to live while the client is open/active. The caller is responsible for freeing both callbacks.
 // TODO: Consider making this async
 #[no_mangle]
-pub unsafe extern "C" fn create_client() -> *const ConnectionResponse {
-    // let request_bytes =
-    //     unsafe { std::slice::from_raw_parts(connection_request_bytes, connection_request_len) };
-    let response = match create_client_internal() {
+pub unsafe extern "C" fn create_client(
+    connection_request_bytes: *const u8,
+    connection_request_len: usize,
+    success_callback: SuccessCallback,
+    failure_callback: FailureCallback,
+) -> *const ConnectionResponse {
+    let request_bytes =
+        unsafe { std::slice::from_raw_parts(connection_request_bytes, connection_request_len) };
+    let response = match create_client_internal(request_bytes, success_callback, failure_callback) {
         Err(err) => ConnectionResponse {
             conn_ptr: std::ptr::null(),
             connection_error_message: CString::into_raw(
@@ -508,46 +521,131 @@ pub unsafe extern "C" fn command(
     arg_count: c_ulong,
     args: *const usize,
     args_len: *const c_ulong,
-) -> *mut CommandResponse {
+    route_bytes: *const u8,
+    route_bytes_len: usize,
+) {
     let client_adapter =
         unsafe { Box::leak(Box::from_raw(client_adapter_ptr as *mut ClientAdapter)) };
+    // The safety of this needs to be ensured by the calling code. Cannot dispose of the pointer before
+    // all operations have completed.
+    let ptr_address = client_adapter_ptr as usize;
 
-    // Ensure the arguments are converted properly
     let arg_vec =
         unsafe { convert_double_pointer_to_vec(args as *const *const c_void, arg_count, args_len) };
 
     let mut client_clone = client_adapter.client.clone();
 
     // Create the command outside of the task to ensure that the command arguments passed
-    // from the caller are still valid
+    // from "go" are still valid
     let mut cmd = command_type
         .get_command()
         .expect("Couldn't fetch command type");
-
     for command_arg in arg_vec {
         cmd.arg(command_arg);
     }
 
-    // Block on the async task to execute the command
-    let result = client_adapter.runtime.block_on(async move {
-        client_clone.send_command(&cmd, None).await
-    });
+    let r_bytes = unsafe { std::slice::from_raw_parts(route_bytes, route_bytes_len) };
 
-    match result {
-        Ok(value) => {
-            // Convert the value to a CommandResponse
-            match valkey_value_to_command_response(value) {
-                Ok(command_response) => Box::into_raw(Box::new(command_response)), // Return a pointer to the CommandResponse
+    let route = Routes::parse_from_bytes(r_bytes).unwrap();
+
+    client_adapter.runtime.spawn(async move {
+        let result = client_clone
+            .send_command(&cmd, get_route(route, Some(&cmd)))
+            .await;
+        let client_adapter = unsafe { Box::leak(Box::from_raw(ptr_address as *mut ClientAdapter)) };
+        let value = match result {
+            Ok(value) => value,
+            Err(err) => {
+                let message = errors::error_message(&err);
+                let error_type = errors::error_type(&err);
+
+                let c_err_str = CString::into_raw(
+                    CString::new(message).expect("Couldn't convert error message to CString"),
+                );
+                unsafe { (client_adapter.failure_callback)(channel, c_err_str, error_type) };
+                return;
+            }
+        };
+
+        let result: RedisResult<CommandResponse> = valkey_value_to_command_response(value);
+
+        unsafe {
+            match result {
+                Ok(message) => {
+                    (client_adapter.success_callback)(channel, Box::into_raw(Box::new(message)))
+                }
                 Err(err) => {
-                    eprintln!("Error converting value to CommandResponse: {:?}", err);
-                    std::ptr::null_mut()
+                    let message = errors::error_message(&err);
+                    let error_type = errors::error_type(&err);
+
+                    let c_err_str = CString::into_raw(
+                        CString::new(message).expect("Couldn't convert error message to CString"),
+                    );
+                    (client_adapter.failure_callback)(channel, c_err_str, error_type);
+                }
+            };
+        }
+    });
+}
+
+fn get_route(route: Routes, cmd: Option<&Cmd>) -> Option<RoutingInfo> {
+    use glide_core::command_request::routes::Value;
+    let route = route.value?;
+    let get_response_policy = |cmd: Option<&Cmd>| {
+        cmd.and_then(|cmd| {
+            cmd.command()
+                .and_then(|cmd| ResponsePolicy::for_command(&cmd))
+        })
+    };
+    match route {
+        Value::SimpleRoutes(simple_route) => {
+            let simple_route = simple_route.enum_value().unwrap();
+            match simple_route {
+                SimpleRoutes::AllNodes => Some(RoutingInfo::MultiNode((
+                    MultipleNodeRoutingInfo::AllNodes,
+                    get_response_policy(cmd),
+                ))),
+                SimpleRoutes::AllPrimaries => Some(RoutingInfo::MultiNode((
+                    MultipleNodeRoutingInfo::AllMasters,
+                    get_response_policy(cmd),
+                ))),
+                SimpleRoutes::Random => {
+                    Some(RoutingInfo::SingleNode(SingleNodeRoutingInfo::Random))
                 }
             }
         }
-        Err(err) => {
-            // Handle the error case
-            eprintln!("Error executing command: {:?}", err);
-            std::ptr::null_mut()
-        }
+        Value::SlotKeyRoute(slot_key_route) => Some(RoutingInfo::SingleNode(
+            SingleNodeRoutingInfo::SpecificNode(Route::new(
+                redis::cluster_topology::get_slot(slot_key_route.slot_key.as_bytes()),
+                get_slot_addr(&slot_key_route.slot_type),
+            )),
+        )),
+        Value::SlotIdRoute(slot_id_route) => Some(RoutingInfo::SingleNode(
+            SingleNodeRoutingInfo::SpecificNode(Route::new(
+                slot_id_route.slot_id as u16,
+                get_slot_addr(&slot_id_route.slot_type),
+            )),
+        )),
+        Value::ByAddressRoute(by_address_route) => match u16::try_from(by_address_route.port) {
+            Ok(port) => Some(RoutingInfo::SingleNode(SingleNodeRoutingInfo::ByAddress {
+                host: by_address_route.host.to_string(),
+                port,
+            })),
+            Err(_) => {
+                // TODO: Handle error propagation.
+                None
+            }
+        },
+        _ => panic!("unknown route type"),
     }
+}
+
+fn get_slot_addr(slot_type: &protobuf::EnumOrUnknown<SlotTypes>) -> SlotAddr {
+    slot_type
+        .enum_value()
+        .map(|slot_type| match slot_type {
+            SlotTypes::Primary => SlotAddr::Master,
+            SlotTypes::Replica => SlotAddr::ReplicaRequired,
+        })
+        .expect("Received unexpected slot id type")
 }
