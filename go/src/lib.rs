@@ -133,8 +133,10 @@ pub struct ClientAdapter {
 }
 
 fn create_client_internal(
+    connection_request_bytes: &[u8],
 ) -> Result<ClientAdapter, String> {
-    // TODO: optimize this using multiple threads instead of a single worker thread (e.g. by pinning each go thread to a rust thread)
+    let request = connection_request::ConnectionRequest::parse_from_bytes(connection_request_bytes)
+        .map_err(|err| err.to_string())?;
     let runtime = Builder::new_multi_thread()
         .enable_all()
         .worker_threads(1)
@@ -144,14 +146,8 @@ fn create_client_internal(
             let redis_error = err.into();
             errors::error_message(&redis_error)
         })?;
-    let addresses = vec![NodeAddress { host: "clustercfg.barshaul-babushka-cluster-test-tls-1.ez432c.use1.cache.amazonaws.com".to_string(), port: 6379}];
-    let use_tls = true;
     let client = runtime
-        .block_on(GlideClient::new(ConnectionRequest {addresses, tls_mode: if use_tls {
-            Some(TlsMode::SecureTls)
-        } else {
-            Some(TlsMode::NoTls)
-        }, cluster_mode_enabled: true, ..Default::default()}, None))
+        .block_on(GlideClient::new(ConnectionRequest::from(request), None))
         .map_err(|err| err.to_string())?;
     Ok(ClientAdapter {
         client,
@@ -177,10 +173,10 @@ fn create_client_internal(
 /// * Both the `success_callback` and `failure_callback` function pointers need to live while the client is open/active. The caller is responsible for freeing both callbacks.
 // TODO: Consider making this async
 #[no_mangle]
-pub unsafe extern "C" fn create_client() -> *const ConnectionResponse {
-    // let request_bytes =
-    //     unsafe { std::slice::from_raw_parts(connection_request_bytes, connection_request_len) };
-    let response = match create_client_internal() {
+pub unsafe extern "C" fn create_client(connection_request_bytes: *const u8, connection_request_len: usize) -> *const ConnectionResponse {
+    let request_bytes =
+        unsafe { std::slice::from_raw_parts(connection_request_bytes, connection_request_len) };
+    let response = match create_client_internal(request_bytes) {
         Err(err) => ConnectionResponse {
             conn_ptr: std::ptr::null(),
             connection_error_message: CString::into_raw(
