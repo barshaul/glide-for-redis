@@ -141,12 +141,18 @@ pub struct ClientAdapter {
 
 fn create_client_internal(
     connection_request_bytes: &[u8],
+<<<<<<< HEAD:ffi/src/sync_lib.rs
     success_callback: SuccessCallback,
     failure_callback: FailureCallback,
 ) -> Result<ClientAdapter, String> {
     let request = connection_request::ConnectionRequest::parse_from_bytes(connection_request_bytes)
         .map_err(|err| err.to_string())?;
     // TODO: optimize this using multiple threads instead of a single worker thread (e.g. by pinning each go thread to a rust thread)
+=======
+) -> Result<ClientAdapter, String> {
+    let request = connection_request::ConnectionRequest::parse_from_bytes(connection_request_bytes)
+        .map_err(|err| err.to_string())?;
+>>>>>>> 1515dbf1 (more tmp):go/src/lib.rs
     let runtime = Builder::new_multi_thread()
         .enable_all()
         .worker_threads(1)
@@ -185,6 +191,7 @@ fn create_client_internal(
 /// * Both the `success_callback` and `failure_callback` function pointers need to live while the client is open/active. The caller is responsible for freeing both callbacks.
 // TODO: Consider making this async
 #[no_mangle]
+<<<<<<< HEAD:ffi/src/sync_lib.rs
 pub unsafe extern "C" fn create_client(
     connection_request_bytes: *const u8,
     connection_request_len: usize,
@@ -194,6 +201,12 @@ pub unsafe extern "C" fn create_client(
     let request_bytes =
         unsafe { std::slice::from_raw_parts(connection_request_bytes, connection_request_len) };
     let response = match create_client_internal(request_bytes, success_callback, failure_callback) {
+=======
+pub unsafe extern "C" fn create_client(connection_request_bytes: *const u8, connection_request_len: usize) -> *const ConnectionResponse {
+    let request_bytes =
+        unsafe { std::slice::from_raw_parts(connection_request_bytes, connection_request_len) };
+    let response = match create_client_internal(request_bytes) {
+>>>>>>> 1515dbf1 (more tmp):go/src/lib.rs
         Err(err) => ConnectionResponse {
             conn_ptr: std::ptr::null(),
             connection_error_message: CString::into_raw(
