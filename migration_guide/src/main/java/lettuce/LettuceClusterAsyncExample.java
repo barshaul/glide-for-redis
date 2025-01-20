@@ -1,3 +1,4 @@
+package lettuce;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.cluster.RedisClusterClient;
@@ -47,6 +48,11 @@ public class LettuceClusterAsyncExample {
             runRedisOperations(asyncCommands).thenRun(() -> {
                 System.out.println("All operations completed.");
             }).join();
+
+        // ZADD operation
+        asyncCommands.flushall().get();
+        } catch (Exception e) {
+            e.printStackTrace(); // Handle the exception or log it
         } finally {
             clusterClient.shutdown();
         }
@@ -97,7 +103,7 @@ public class LettuceClusterAsyncExample {
         }).thenAccept(result -> System.out.println("PEXPIRE result: " + result));
 
         // ZADD operation
-        RedisFuture<Long> zaddFuture = asyncCommands.zadd("myzset", Map.of("member1", 1.0, "member2", 2.0));
+        RedisFuture<Long> zaddFuture = asyncCommands.zadd("myzset", 1.0, "member1", 2.0, "member2");
         CompletableFuture<Void> zaddOp = CompletableFuture.supplyAsync(() -> {
             try {
                 return zaddFuture.get();
@@ -105,7 +111,6 @@ public class LettuceClusterAsyncExample {
                 throw new RuntimeException(e);
             }
         }).thenAccept(result -> System.out.println("ZADD result: " + result));
-
         // Combine all futures
         return CompletableFuture.allOf(setOp, getOp, msetOp, pexpireOp, zaddOp);
     }

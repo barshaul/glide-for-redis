@@ -22,10 +22,10 @@ repositories {
 
 dependencies {
     // This dependency is found on compile classpath of this component and consumers.
-    compile 'com.google.guava:guava:23.0'
+    implementation 'com.google.guava:guava:23.0'
 
     // Use JUnit test framework
-    testCompile 'junit:junit:4.12'
+    testImplementation 'junit:junit:4.12'
 
     // https://mvnrepository.com/artifact/io.lettuce/lettuce-core
     implementation group: 'io.lettuce', name: 'lettuce-core', version: '6.2.6.RELEASE'
@@ -33,6 +33,17 @@ dependencies {
 
 }
 
-// Define the main class for the application
-// mainClassName = 'LettuceClusterAsyncExample'
-mainClassName = 'GlideFromLettuceClusterAsyncExample'
+
+task runGlide(type: JavaExec) {
+    group = 'application'
+    description = 'Run Glide example'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'glide.GlideFromLettuceClusterAsyncExample'
+}
+
+task runLettuce(type: JavaExec) {
+    group = 'application'
+    description = 'Run Lettuce example'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'lettuce.LettuceClusterAsyncExample'
+}

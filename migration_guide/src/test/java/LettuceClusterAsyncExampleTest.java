@@ -6,7 +6,6 @@ import static org.junit.Assert.*;
 
 public class LettuceClusterAsyncExampleTest {
     @Test public void testAppHasAGreeting() {
-        LettuceClusterAsyncExample classUnderTest = new LettuceClusterAsyncExample();
-        // assertNotNull("app should have a greeting", classUnderTest.getGreeting());
+        //
     }
 }

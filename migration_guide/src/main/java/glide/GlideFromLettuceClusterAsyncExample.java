@@ -1,30 +1,5 @@
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.async.RedisAsyncCommands;
-import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
-import io.lettuce.core.ClientOptions;
-import io.lettuce.core.RedisClient;
-import io.lettuce.core.RedisURI;
-import io.lettuce.core.SocketOptions;
-import io.lettuce.core.TimeoutOptions;
-import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.sync.RedisCommands;
-import io.lettuce.core.cluster.ClusterClientOptions;
-import io.lettuce.core.cluster.ClusterTopologyRefreshOptions;
-import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import io.lettuce.core.cluster.api.sync.RedisAdvancedClusterCommands;
-import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
-import io.lettuce.core.output.StatusOutput;
-import io.lettuce.core.protocol.CommandArgs;
-import io.lettuce.core.protocol.ProtocolVersion;
-import io.lettuce.core.resource.ClientResources;
-import io.lettuce.core.resource.DefaultClientResources;
-import io.lettuce.core.resource.Delay;
-import io.lettuce.core.resource.DirContextDnsResolver;
+package glide;
+
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -55,6 +30,7 @@ public class GlideFromLettuceClusterAsyncExample {
             runRedisOperations(clusterClient).thenRun(() -> {
                 System.out.println("All operations completed.");
             }).join();
+            clusterClient.flushall().get();
         } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace(); // Handle the exception or log it
         } finally {
