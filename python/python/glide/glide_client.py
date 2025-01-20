@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 from glide.async_commands.cluster_commands import ClusterCommands
 from glide.async_commands.command_args import ObjectType
 from glide.async_commands.core import CoreCommands
+from glide.sync_commands.core import CoreCommands as SyncCoreCommands
 from glide.async_commands.standalone_commands import StandaloneCommands
 from glide.config import BaseClientConfiguration, ServerCredentials
 from glide.constants import DEFAULT_READ_BYTES_SIZE, OK, TEncodable, TRequest, TResult
@@ -18,15 +19,16 @@ from glide.exceptions import (
     ExecAbortError,
     RequestError,
     TimeoutError,
+    get_request_error_class
 )
 from glide.logger import Level as LogLevel
 from glide.logger import Logger as ClientLogger
 from glide.protobuf.command_request_pb2 import Command, CommandRequest, RequestType
 from glide.protobuf.connection_request_pb2 import ConnectionRequest
-from glide.protobuf.response_pb2 import RequestErrorType, Response
+from glide.protobuf.response_pb2 import Response
 from glide.protobuf_codec import PartialMessageException, ProtobufCodec
 from glide.routes import Route, set_protobuf_route
-
+from glide.glide_sync_client import GlideSync
 from .glide import (
     DEFAULT_TIMEOUT_IN_MILLISECONDS,
     MAX_REQUEST_ARGS_LEN,
@@ -45,93 +47,7 @@ else:
     from typing_extensions import Self
 
 
-def get_request_error_class(
-    error_type: Optional[RequestErrorType.ValueType],
-) -> Type[RequestError]:
-    if error_type == RequestErrorType.Disconnect:
-        return ConnectionError
-    if error_type == RequestErrorType.ExecAbort:
-        return ExecAbortError
-    if error_type == RequestErrorType.Timeout:
-        return TimeoutError
-    if error_type == RequestErrorType.Unspecified:
-        return RequestError
-    return RequestError
-
-
-class BaseClient(CoreCommands):
-    def __init__(self, config: BaseClientConfiguration):
-        """
-        To create a new client, use the `create` classmethod
-        """
-        self.config: BaseClientConfiguration = config
-        self._available_futures: Dict[int, asyncio.Future] = {}
-        self._available_callback_indexes: List[int] = list()
-        self._buffered_requests: List[TRequest] = list()
-        self._writer_lock = threading.Lock()
-        self.socket_path: Optional[str] = None
-        self._reader_task: Optional[asyncio.Task] = None
-        self._is_closed: bool = False
-        self._pubsub_futures: List[asyncio.Future] = []
-        self._pubsub_lock = threading.Lock()
-        self._pending_push_notifications: List[Response] = list()
-
-    @classmethod
-    async def create(cls, config: BaseClientConfiguration) -> Self:
-        """Creates a Glide client.
-
-        Args:
-            config (ClientConfiguration): The client configurations.
-                If no configuration is provided, a default client to "localhost":6379 will be created.
-
-        Returns:
-            Self: a Glide Client instance.
-        """
-        config = config
-        self = cls(config)
-        init_future: asyncio.Future = asyncio.Future()
-        loop = asyncio.get_event_loop()
-
-        def init_callback(socket_path: Optional[str], err: Optional[str]):
-            if err is not None:
-                raise ClosingError(err)
-            elif socket_path is None:
-                raise ClosingError(
-                    "Socket initialization error: Missing valid socket path."
-                )
-            else:
-                # Received socket path
-                self.socket_path = socket_path
-                loop.call_soon_threadsafe(init_future.set_result, True)
-
-        start_socket_listener_external(init_callback=init_callback)
-
-        # will log if the logger was created (wrapper or costumer) on info
-        # level or higher
-        ClientLogger.log(LogLevel.INFO, "connection info", "new connection established")
-        # Wait for the socket listener to complete its initialization
-        await init_future
-        # Create UDS connection
-        await self._create_uds_connection()
-        # Start the reader loop as a background task
-        self._reader_task = asyncio.create_task(self._reader_loop())
-        # Set the client configurations
-        await self._set_connection_configurations()
-        return self
-
-    async def _create_uds_connection(self) -> None:
-        try:
-            # Open an UDS connection
-            async with async_timeout.timeout(DEFAULT_TIMEOUT_IN_MILLISECONDS):
-                reader, writer = await asyncio.open_unix_connection(
-                    path=self.socket_path
-                )
-            self._reader = reader
-            self._writer = writer
-        except Exception as e:
-            await self.close(f"Failed to create UDS connection: {e}")
-            raise
-
+class AsyncGlide:
     def __del__(self) -> None:
         try:
             if self._reader_task:
@@ -553,6 +469,93 @@ class BaseClient(CoreCommands):
         return response
 
 
+class BaseClient:
+    def __init__(self, config: BaseClientConfiguration):
+        """
+        To create a new client, use the `create` classmethod
+        """
+        print("BaseClient called")
+        self.config: BaseClientConfiguration = config
+        self._available_futures: Dict[int, asyncio.Future] = {}
+        self._available_callback_indexes: List[int] = list()
+        self._buffered_requests: List[TRequest] = list()
+        self._writer_lock = threading.Lock()
+        self.socket_path: Optional[str] = None
+        self._reader_task: Optional[asyncio.Task] = None
+        self._is_closed: bool = False
+        self._pubsub_futures: List[asyncio.Future] = []
+        self._pubsub_lock = threading.Lock()
+        self._pending_push_notifications: List[Response] = list()
+
+    @classmethod
+    async def create(cls, config: BaseClientConfiguration) -> Self:
+        """Creates a Glide client.
+
+        Args:
+            config (ClientConfiguration): The client configurations.
+                If no configuration is provided, a default client to "localhost":6379 will be created.
+
+        Returns:
+            Self: a Glide Client instance.
+        """
+        config = config
+        self = cls(config)
+        self.__class__ = type(self.__class__.__name__, (self.__class__, AsyncGlide), dict(self.__class__.__dict__))
+        self.__class__ = type(self.__class__.__name__, (self.__class__, CoreCommands), dict(self.__class__.__dict__))
+        init_future: asyncio.Future = asyncio.Future()
+        loop = asyncio.get_event_loop()
+
+        def init_callback(socket_path: Optional[str], err: Optional[str]):
+            if err is not None:
+                raise ClosingError(err)
+            elif socket_path is None:
+                raise ClosingError(
+                    "Socket initialization error: Missing valid socket path."
+                )
+            else:
+                # Received socket path
+                self.socket_path = socket_path
+                loop.call_soon_threadsafe(init_future.set_result, True)
+
+        start_socket_listener_external(init_callback=init_callback)
+
+        # will log if the logger was created (wrapper or costumer) on info
+        # level or higher
+        ClientLogger.log(LogLevel.INFO, "connection info", "new connection established")
+        # Wait for the socket listener to complete its initialization
+        await init_future
+        # Create UDS connection
+        await self._create_uds_connection()
+        # Start the reader loop as a background task
+        self._reader_task = asyncio.create_task(self._reader_loop())
+        # Set the client configurations
+        await self._set_connection_configurations()
+        return self
+
+
+    @classmethod
+    def create_sync(cls, config: BaseClientConfiguration) -> Self:
+        config = config
+        self = cls(config)
+        DynamicClient = type("DynamicClient", (self.__class__, SyncCoreCommands), {})
+        self.__class__ = DynamicClient
+        self.__class__ = type(self.__class__.__name__, (self.__class__, GlideSync), dict(self.__class__.__dict__))
+        # self.__class__ = type(self.__class__.__name__, (self.__class__, SyncCoreCommands), dict(self.__class__.__dict__))
+        GlideSync.__init__(self, config)
+        return self
+    async def _create_uds_connection(self) -> None:
+        try:
+            # Open an UDS connection
+            async with async_timeout.timeout(DEFAULT_TIMEOUT_IN_MILLISECONDS):
+                reader, writer = await asyncio.open_unix_connection(
+                    path=self.socket_path
+                )
+            self._reader = reader
+            self._writer = writer
+        except Exception as e:
+            await self.close(f"Failed to create UDS connection: {e}")
+            raise
+
 class GlideClusterClient(BaseClient, ClusterCommands):
     """
     Client used for connection to cluster servers.
@@ -593,7 +596,7 @@ class GlideClusterClient(BaseClient, ClusterCommands):
         return self.config._create_a_protobuf_conn_request(cluster_mode=True)
 
 
-class GlideClient(BaseClient, StandaloneCommands):
+class GlideClient(BaseClient):
     """
     Client used for connection to standalone servers.
     For full documentation, see

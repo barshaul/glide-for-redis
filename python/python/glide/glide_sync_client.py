@@ -6,15 +6,16 @@ from glide.constants import DEFAULT_READ_BYTES_SIZE, OK, TEncodable, TRequest, T
 from glide.routes import Route
 from glide.exceptions import ClosingError, RequestError
 from glide.config import GlideClusterClientConfiguration
-from glide.glide_client import get_request_error_class
+from glide.exceptions import get_request_error_class
 
 # Enum values must match the Rust definition
 class FFIClientTypeEnum:
     Async = 0
     Sync = 1
     
-class GlideSync(CoreCommands):        
+class GlideSync:        
     def __init__(self, config):
+        print("GlideSync called")
         self._init_ffi()
         self.config = config
         conn_req = config._create_a_protobuf_conn_request(cluster_mode=type(config) == GlideClusterClientConfiguration)
@@ -196,7 +197,7 @@ class GlideSync(CoreCommands):
                 # Convert numeric values to strings and then to bytes
                 arg_bytes = str(arg).encode('utf-8')
             else:
-                raise ValueError(f"Unsupported argument type: {type(arg)}")
+                raise ValueError(f"Unsupported argument type: {type(arg)}") # TODO: fix to internal error
 
             # Use ffi.from_buffer for zero-copy conversion
             buffers.append(arg_bytes)  # Keep the byte buffer alive
