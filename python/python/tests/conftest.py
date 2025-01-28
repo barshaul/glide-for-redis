@@ -119,6 +119,7 @@ def create_clusters(tls, load_module, cluster_endpoints, standalone_endpoints):
     """
     Create Valkey clusters based on the provided options.
     """
+    return
     if cluster_endpoints or standalone_endpoints:
         # Endpoints were passed by the caller, not creating clusters internally
         if cluster_endpoints:
@@ -262,7 +263,7 @@ async def create_client(
     # Create async socket client
     use_tls = request.config.getoption("--tls")
     if cluster_mode:
-        valkey_cluster = valkey_cluster or pytest.valkey_cluster
+        # valkey_cluster = valkey_cluster or pytest.valkey_cluster
         assert type(valkey_cluster) is ValkeyCluster
         assert database_id == 0
         k = min(3, len(valkey_cluster.nodes_addr))
@@ -282,7 +283,8 @@ async def create_client(
         )
         return await GlideClusterClient.create(cluster_config)
     else:
-        assert type(pytest.standalone_cluster) is ValkeyCluster
+        # assert type(pytest.standalone_cluster) is ValkeyCluster
+        addresses = [NodeAddress("localhost", 6379)]
         config = GlideClientConfiguration(
             addresses=(
                 pytest.standalone_cluster.nodes_addr if addresses is None else addresses

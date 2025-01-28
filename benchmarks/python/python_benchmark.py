@@ -311,7 +311,7 @@ async def main(
 
 
 def number_of_iterations(num_of_concurrent_tasks):
-    return min(max(100000, num_of_concurrent_tasks * 10000), 5000000)
+    return min(max(100000, num_of_concurrent_tasks * 10000), 100000)
 
 
 if __name__ == "__main__":

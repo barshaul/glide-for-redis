@@ -244,7 +244,7 @@ class BaseClient(CoreCommands):
             args_size += sys.getsizeof(encoded_arg)
         return (encoded_args_list, args_size)
 
-    async def _execute_command(
+    def _execute_command(
         self,
         request_type: RequestType.ValueType,
         args: List[TEncodable],
@@ -269,7 +269,7 @@ class BaseClient(CoreCommands):
                 encoded_args
             )
         set_protobuf_route(request, route)
-        return await self._write_request_await_response(request)
+        return self._write_request_await_response(request)
 
     async def _execute_transaction(
         self,
@@ -444,13 +444,12 @@ class BaseClient(CoreCommands):
             if pubsub_message:
                 self._pubsub_futures.pop(0).set_result(pubsub_message)
 
-    async def _write_request_await_response(self, request: CommandRequest):
+    def _write_request_await_response(self, request: CommandRequest):
         # Create a response future for this request and add it to the available
         # futures map
         response_future = self._get_future(request.callback_idx)
         self._create_write_task(request)
-        await response_future
-        return response_future.result()
+        return response_future
 
     def _get_callback_index(self) -> int:
         try:
@@ -544,6 +543,7 @@ class BaseClient(CoreCommands):
         if password is not None:
             request.update_connection_password.password = password
         request.update_connection_password.immediate_auth = immediate_auth
+        print("here")
         response = await self._write_request_await_response(request)
         # Update the client binding side password if managed to change core configuration password
         if response is OK:
