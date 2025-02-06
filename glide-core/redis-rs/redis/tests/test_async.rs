@@ -283,7 +283,7 @@ mod basic_async {
             let mut pipe = pipe();
             pipe.zrange("zset", 0, 0);
             pipe.zrange("zset", 0, 0);
-            let frames = con.send_packed_commands(&pipe, 0, 2).await?;
+            let frames = con.send_packed_commands(&pipe, 0, 2, false).await?;
             assert_eq!(frames.len(), 2);
             assert!(matches!(frames[0], redis::Value::Array(_)));
             assert!(matches!(frames[1], redis::Value::Array(_)));
@@ -438,7 +438,7 @@ mod basic_async {
             connection.set_response_timeout(std::time::Duration::from_millis(1));
             let mut cmd = redis::Cmd::new();
             cmd.arg("BLPOP").arg("foo").arg(0); // 0 timeout blocks indefinitely
-            let result = connection.req_packed_command(&cmd).await;
+            let result = connection.req_packed_command(&cmd, false).await;
             assert!(result.is_err());
             assert!(result.unwrap_err().is_timeout());
             Ok(())

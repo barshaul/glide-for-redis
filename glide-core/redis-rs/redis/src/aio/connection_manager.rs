@@ -253,7 +253,7 @@ impl ConnectionManager {
             .await
             .map_err(|e| e.clone_mostly("Reconnecting failed"));
         reconnect_if_conn_dropped!(self, connection_result, guard);
-        let result = connection_result?.send_packed_command(cmd).await;
+        let result = connection_result?.send_packed_command(cmd, false).await;
         reconnect_if_dropped!(self, &result, guard);
         result
     }
@@ -275,7 +275,7 @@ impl ConnectionManager {
             .map_err(|e| e.clone_mostly("Reconnecting failed"));
         reconnect_if_conn_dropped!(self, connection_result, guard);
         let result = connection_result?
-            .send_packed_commands(cmd, offset, count)
+            .send_packed_commands(cmd, offset, count, false)
             .await;
         reconnect_if_dropped!(self, &result, guard);
         result
@@ -288,7 +288,7 @@ impl ConnectionManager {
 }
 
 impl ConnectionLike for ConnectionManager {
-    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd, asking: bool) -> RedisFuture<'a, Value> {
         (async move { self.send_packed_command(cmd).await }).boxed()
     }
 
@@ -297,6 +297,7 @@ impl ConnectionLike for ConnectionManager {
         cmd: &'a crate::Pipeline,
         offset: usize,
         count: usize,
+        asking: bool,
     ) -> RedisFuture<'a, Vec<Value>> {
         (async move { self.send_packed_commands(cmd, offset, count).await }).boxed()
     }

@@ -172,7 +172,7 @@ impl<C> ConnectionLike for Connection<C>
 where
     C: Unpin + AsyncRead + AsyncWrite + Send,
 {
-    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd, asking: bool) -> RedisFuture<'a, Value> {
         (async move {
             if self.pubsub {
                 self.exit_pubsub().await?;
@@ -198,6 +198,7 @@ where
         cmd: &'a crate::Pipeline,
         offset: usize,
         count: usize,
+        asking: bool,
     ) -> RedisFuture<'a, Vec<Value>> {
         (async move {
             if self.pubsub {

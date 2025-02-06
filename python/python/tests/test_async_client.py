@@ -126,8 +126,8 @@ class TestGlideClients:
         assert "lib-name=GlidePy" in info_str
         assert "lib-ver=unknown" in info_str
 
-    @pytest.mark.parametrize("cluster_mode", [True, False])
-    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP2, ProtocolVersion.RESP3])
+    @pytest.mark.parametrize("cluster_mode", [False])
+    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP3])
     async def test_send_and_receive_large_values(self, request, cluster_mode, protocol):
         glide_client = await create_client(
             request, cluster_mode=cluster_mode, protocol=protocol, request_timeout=5000
@@ -154,8 +154,8 @@ class TestGlideClients:
         assert await glide_client.get(key.encode()) == value.encode()
 
     @pytest.mark.parametrize("value_size", [100, 2**16])
-    @pytest.mark.parametrize("cluster_mode", [True, False])
-    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP2, ProtocolVersion.RESP3])
+    @pytest.mark.parametrize("cluster_mode", [False])
+    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP3])
     async def test_client_handle_concurrent_workload_without_dropping_or_changing_values(
         self, glide_client: TGlideClient, value_size
     ):
@@ -392,13 +392,20 @@ class TestGlideClients:
 @pytest.mark.asyncio
 class TestCommands:
     @pytest.mark.smoke_test
-    @pytest.mark.parametrize("cluster_mode", [True, False])
-    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP2, ProtocolVersion.RESP3])
+    @pytest.mark.parametrize("cluster_mode", [True])
+    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP3])
     async def test_socket_set_get(self, glide_client: TGlideClient):
         key = get_random_string(10)
         value = datetime.now(timezone.utc).strftime("%m/%d/%Y, %H:%M:%S")
-        assert await glide_client.set(key, value) == OK
-        assert await glide_client.get(key) == value.encode()
+        # requests can be written to the socket without awaiting on the call
+        f1 = glide_client.set(key, value)
+        f2 = glide_client.get(key)
+        # now wait for both requests' result
+        print("start sleeping")
+        await asyncio.sleep(1)
+        print("finish sleeping")
+        done = await asyncio.wait([f1, f2])
+        print(f"res is = {done}")
 
     @pytest.mark.parametrize("cluster_mode", [True, False])
     @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP3])

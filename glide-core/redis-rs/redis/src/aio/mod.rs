@@ -62,7 +62,7 @@ impl<S> AsyncStream for S where S: AsyncRead + AsyncWrite {}
 pub trait ConnectionLike {
     /// Sends an already encoded (packed) command into the TCP socket and
     /// reads the single response from it.
-    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value>;
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd, asking: bool) -> RedisFuture<'a, Value>;
 
     /// Sends multiple already encoded (packed) command into the TCP socket
     /// and reads `count` responses from it.  This is used to implement
@@ -77,6 +77,7 @@ pub trait ConnectionLike {
         cmd: &'a crate::Pipeline,
         offset: usize,
         count: usize,
+        asking: bool,
     ) -> RedisFuture<'a, Vec<Value>>;
 
     /// Returns the database this connection is bound to.  Note that this
@@ -121,7 +122,7 @@ async fn update_az_from_info<C>(con: &mut C) -> RedisResult<()>
 where
     C: ConnectionLike,
 {
-    let info_res = con.req_packed_command(&cmd("INFO")).await;
+    let info_res = con.req_packed_command(&cmd("INFO"), false).await;
 
     match info_res {
         Ok(value) => {

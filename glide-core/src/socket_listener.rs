@@ -12,6 +12,7 @@ use crate::response;
 use crate::response::Response;
 use bytes::Bytes;
 use directories::BaseDirs;
+use futures::{future::poll_fn, stream::FuturesUnordered, StreamExt};
 use logger_core::{log_debug, log_error, log_info, log_trace, log_warn};
 use once_cell::sync::Lazy;
 use protobuf::{Chars, Message};
@@ -25,13 +26,14 @@ use std::collections::HashSet;
 use std::ptr::from_mut;
 use std::rc::Rc;
 use std::sync::RwLock;
+use std::task::Poll;
 use std::{env, str};
 use std::{io, thread};
 use thiserror::Error;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::task;
 use tokio_util::task::LocalPoolHandle;
@@ -459,112 +461,98 @@ fn get_route(
     }
 }
 
-fn handle_request(request: CommandRequest, mut client: Client, writer: Rc<Writer>) {
-    task::spawn_local(async move {
-        let mut updated_inflight_counter = true;
-        let client_clone = client.clone();
-
-        let result = match client.reserve_inflight_request() {
-            false => {
-                updated_inflight_counter = false;
-                Err(ClientUsageError::User(
-                    "Reached maximum inflight requests".to_string(),
+async fn handle_request(
+    request: CommandRequest,
+    mut client: Client,
+    writer: Rc<Writer>,
+) -> Result<(), io::Error> {
+    let mut updated_inflight_counter = true;
+    let client_clone = client.clone();
+    let result = match client.reserve_inflight_request() {
+        false => {
+            updated_inflight_counter = false;
+            Err(ClientUsageError::User(
+                "Reached maximum inflight requests".to_string(),
+            ))
+        }
+        true => match request.command {
+            Some(action) => match action {
+                command_request::Command::ClusterScan(cluster_scan_command) => {
+                    cluster_scan(cluster_scan_command, client).await
+                }
+                command_request::Command::SingleCommand(command) => {
+                    match get_redis_command(&command) {
+                        Ok(cmd) => match get_route(request.route.0, Some(&cmd)) {
+                            Ok(routes) => send_command(cmd, client, routes).await,
+                            Err(e) => Err(e),
+                        },
+                        Err(e) => Err(e),
+                    }
+                }
+                command_request::Command::Transaction(transaction) => {
+                    match get_route(request.route.0, None) {
+                        Ok(routes) => send_transaction(transaction, &mut client, routes).await,
+                        Err(e) => Err(e),
+                    }
+                }
+                command_request::Command::ScriptInvocation(script) => {
+                    match get_route(request.route.0, None) {
+                        Ok(routes) => {
+                            invoke_script(
+                                script.hash,
+                                Some(script.keys),
+                                Some(script.args),
+                                client,
+                                routes,
+                            )
+                            .await
+                        }
+                        Err(e) => Err(e),
+                    }
+                }
+                command_request::Command::ScriptInvocationPointers(script) => {
+                    let keys = script
+                        .keys_pointer
+                        .map(|pointer| *unsafe { Box::from_raw(pointer as *mut Vec<Bytes>) });
+                    let args = script
+                        .args_pointer
+                        .map(|pointer| *unsafe { Box::from_raw(pointer as *mut Vec<Bytes>) });
+                    match get_route(request.route.0, None) {
+                        Ok(routes) => invoke_script(script.hash, keys, args, client, routes).await,
+                        Err(e) => Err(e),
+                    }
+                }
+                command_request::Command::UpdateConnectionPassword(
+                    update_connection_password_command,
+                ) => client
+                    .update_connection_password(
+                        update_connection_password_command
+                            .password
+                            .map(|chars| chars.to_string()),
+                        update_connection_password_command.immediate_auth,
+                    )
+                    .await
+                    .map_err(|err| err.into()),
+            },
+            None => {
+                log_debug(
+                    "received error",
+                    format!(
+                        "Received empty request for callback {}",
+                        request.callback_idx
+                    ),
+                );
+                Err(ClientUsageError::Internal(
+                    "Received empty request".to_string(),
                 ))
             }
-            true => match request.command {
-                Some(action) => match action {
-                    command_request::Command::ClusterScan(cluster_scan_command) => {
-                        cluster_scan(cluster_scan_command, client).await
-                    }
-                    command_request::Command::SingleCommand(command) => {
-                        match get_redis_command(&command) {
-                            Ok(cmd) => match get_route(request.route.0, Some(&cmd)) {
-                                Ok(routes) => send_command(cmd, client, routes).await,
-                                Err(e) => Err(e),
-                            },
-                            Err(e) => Err(e),
-                        }
-                    }
-                    command_request::Command::Transaction(transaction) => {
-                        match get_route(request.route.0, None) {
-                            Ok(routes) => send_transaction(transaction, &mut client, routes).await,
-                            Err(e) => Err(e),
-                        }
-                    }
-                    command_request::Command::ScriptInvocation(script) => {
-                        match get_route(request.route.0, None) {
-                            Ok(routes) => {
-                                invoke_script(
-                                    script.hash,
-                                    Some(script.keys),
-                                    Some(script.args),
-                                    client,
-                                    routes,
-                                )
-                                .await
-                            }
-                            Err(e) => Err(e),
-                        }
-                    }
-                    command_request::Command::ScriptInvocationPointers(script) => {
-                        let keys = script
-                            .keys_pointer
-                            .map(|pointer| *unsafe { Box::from_raw(pointer as *mut Vec<Bytes>) });
-                        let args = script
-                            .args_pointer
-                            .map(|pointer| *unsafe { Box::from_raw(pointer as *mut Vec<Bytes>) });
-                        match get_route(request.route.0, None) {
-                            Ok(routes) => {
-                                invoke_script(script.hash, keys, args, client, routes).await
-                            }
-                            Err(e) => Err(e),
-                        }
-                    }
-                    command_request::Command::UpdateConnectionPassword(
-                        update_connection_password_command,
-                    ) => client
-                        .update_connection_password(
-                            update_connection_password_command
-                                .password
-                                .map(|chars| chars.to_string()),
-                            update_connection_password_command.immediate_auth,
-                        )
-                        .await
-                        .map_err(|err| err.into()),
-                },
-                None => {
-                    log_debug(
-                        "received error",
-                        format!(
-                            "Received empty request for callback {}",
-                            request.callback_idx
-                        ),
-                    );
-                    Err(ClientUsageError::Internal(
-                        "Received empty request".to_string(),
-                    ))
-                }
-            },
-        };
+        },
+    };
 
-        if updated_inflight_counter {
-            client_clone.release_inflight_request();
-        }
-
-        let _res = write_result(result, request.callback_idx, &writer).await;
-    });
-}
-
-async fn handle_requests(
-    received_requests: Vec<CommandRequest>,
-    client: &Client,
-    writer: &Rc<Writer>,
-) {
-    for request in received_requests {
-        handle_request(request, client.clone(), writer.clone());
+    if updated_inflight_counter {
+        client_clone.release_inflight_request();
     }
-    // Yield to ensure that the subtasks aren't starved.
-    task::yield_now().await;
+    write_result(result, request.callback_idx, &writer).await
 }
 
 pub fn close_socket(socket_path: &String) {
@@ -605,10 +593,9 @@ async fn wait_for_connection_configuration_and_create_client(
     }
 }
 
-async fn read_values_loop(
+async fn client_reader_loop(
     mut client_listener: UnixStreamListener,
-    client: &Client,
-    writer: Rc<Writer>,
+    output: Sender<Vec<CommandRequest>>,
 ) -> ClosingReason {
     loop {
         match client_listener.next_values().await {
@@ -616,7 +603,9 @@ async fn read_values_loop(
                 return reason;
             }
             ReceivedValues(received_requests) => {
-                handle_requests(received_requests, client, &writer).await;
+                if let Err(_err) = output.send(received_requests).await {
+                    return ClosingReason::ClientRequestProcessorClosed;
+                }
             }
         }
     }
@@ -646,6 +635,50 @@ async fn push_manager_loop(mut push_rx: mpsc::UnboundedReceiver<PushInfo>, write
                 };
 
                 _ = write_to_writer(response, &writer).await;
+            }
+        }
+    }
+}
+
+// Process all incoming requests received from the socket for this client. This task would be responsible for two things:
+// 1. Listening on the channel for new requests and pushing them into the futures queue
+// 2. Processing the futures queue by polling the queue to let the futures progress and removing completed futures
+// This task will be closed when the channel to send requests through will be closed.
+async fn request_processor_loop(
+    client: Client,
+    writer: Rc<Writer>,
+    mut requests_channel: Receiver<Vec<CommandRequest>>,
+) {
+    let mut futures_queue = FuturesUnordered::new();
+    loop {
+        tokio::select! {
+            // Handle new incoming requests from the channel
+            Some(requests) = requests_channel.recv() => {
+                for request in requests {
+                    let mut request_future = Box::pin(handle_request(request, client.clone(), writer.clone()));
+                    // Pre-poll the future once to ensure it starts execution immediately
+                    // and maintains the request order before adding it to the futures queue.
+                    let _ = std::future::poll_fn(|cx| {
+                        Poll::Ready(Pin::new(&mut request_future).poll(cx))
+                    }).await;
+                    // Add the future to the queue, where it will be polled until completion.
+                    futures_queue.push(request_future);
+                }
+            }
+
+            // Poll the futures queue and process the next completed future.
+            Some(result) = poll_fn(|cx| futures_queue.poll_next_unpin(cx)) => {
+                if let Err(_err) = result {
+                    println!("Client consumer: IO Error!");
+                }
+            }
+
+            // Exit the loop if both the channel and queue are empty
+            else => {
+                if futures_queue.is_empty() {
+                    println!("Client consumer: No more tasks to process, exiting.");
+                    break;
+                }
             }
         }
     }
@@ -707,8 +740,20 @@ async fn listen_on_client_stream(socket: UnixStream) {
         }
     };
     log_info("connection", "new connection started");
+    // Each client has two dedicated tasks:
+    // 1. `client_reader_loop`: Listens on the socket, receives new requests, parses them,
+    //    and forwards them to the second task.
+    // 2. `request_processor_loop`: Manages a `FuturesUnordered` queue by receiving requests from the channel,
+    //    adding them to the queue, and continuously polling them until completion.
+    let (requests_sender, requests_receiver) = mpsc::channel::<Vec<CommandRequest>>(100);
+    let cloned_writer = writer.clone();
+    let request_processor = task::spawn_local(request_processor_loop(
+        client.clone(),
+        cloned_writer,
+        requests_receiver,
+    ));
     tokio::select! {
-            reader_closing = read_values_loop(client_listener, &client, writer.clone()) => {
+            reader_closing = client_reader_loop(client_listener, requests_sender) => {
                 if let ClosingReason::UnhandledError(err) = reader_closing {
                     let _res = write_closing_error(ClosingError{err_message: err.to_string()}, u32::MAX, &writer, "client closing").await;
                 };
@@ -725,6 +770,7 @@ async fn listen_on_client_stream(socket: UnixStream) {
                 log_trace("client closing", "push manager closed");
             }
     }
+    request_processor.abort();
     log_trace("client closing", "closing connection");
 }
 
@@ -733,6 +779,8 @@ async fn listen_on_client_stream(socket: UnixStream) {
 pub enum ClosingReason {
     /// The socket was closed. This is the expected way that the listener should be closed.
     ReadSocketClosed,
+    /// The client's request processor task was closed.
+    ClientRequestProcessorClosed,
     /// The listener encounter an error it couldn't handle.
     UnhandledError(RedisError),
 }

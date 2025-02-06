@@ -12,9 +12,9 @@ use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
 #[cfg(all(feature = "cluster-async", feature = "tokio-comp"))]
-use tokio::sync::RwLock;
+use std::sync::RwLock;
+use std::time::{Duration, SystemTime};
 use tracing::info;
 
 // Exponential backoff constants for retrying a slot refresh

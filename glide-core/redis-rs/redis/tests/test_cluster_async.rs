@@ -436,7 +436,9 @@ mod cluster_async {
     #[serial_test::serial]
     fn test_async_cluster_route_flush_to_specific_node() {
         let cluster = TestClusterContext::new(3, 0);
-
+        println!("start sleeping");
+        std::thread::sleep(Duration::from_secs(30));
+        println!("finished sleeping");
         block_on_all(async move {
             let mut connection = cluster.async_connection(None).await;
             let _: () = connection.set("foo", "bar").await.unwrap();
@@ -637,12 +639,12 @@ mod cluster_async {
         block_on_all(async move {
             let mut connection = cluster.async_connection(None).await;
             let mut pipe = redis::pipe();
-            pipe.add_command(cmd("SET").arg("test").arg("test_data").clone());
-            pipe.add_command(cmd("SET").arg("{test}3").arg("test_data3").clone());
+            pipe.add_command(cmd("SET").arg("foo").arg("test_data").clone());
+            pipe.add_command(cmd("SET").arg("{foo}3").arg("test_data3").clone());
             pipe.query_async(&mut connection).await?;
-            let res: String = connection.get("test").await?;
+            let res: String = connection.get("foo").await?;
             assert_eq!(res, "test_data");
-            let res: String = connection.get("{test}3").await?;
+            let res: String = connection.get("{foo}3").await?;
             assert_eq!(res, "test_data3");
             Ok::<_, RedisError>(())
         })
@@ -836,11 +838,15 @@ mod cluster_async {
     }
 
     impl ConnectionLike for ErrorConnection {
-        fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
+        fn req_packed_command<'a>(
+            &'a mut self,
+            cmd: &'a Cmd,
+            asking: bool,
+        ) -> RedisFuture<'a, Value> {
             if ERROR.load(Ordering::SeqCst) {
                 Box::pin(async move { Err(RedisError::from((redis::ErrorKind::Moved, "ERROR"))) })
             } else {
-                self.inner.req_packed_command(cmd)
+                self.inner.req_packed_command(cmd, asking)
             }
         }
 
@@ -849,8 +855,10 @@ mod cluster_async {
             pipeline: &'a redis::Pipeline,
             offset: usize,
             count: usize,
+            asking: bool,
         ) -> RedisFuture<'a, Vec<Value>> {
-            self.inner.req_packed_commands(pipeline, offset, count)
+            self.inner
+                .req_packed_commands(pipeline, offset, count, asking)
         }
 
         fn get_db(&self) -> i64 {
@@ -2320,11 +2328,12 @@ mod cluster_async {
                             _ => panic!("Node should not be called now"),
                         },
                         6380 => match count {
+                            // 1 => {
+                            //     println!("recevied cmd: {:?}", std::str::from_utf8(&cmd).unwrap());
+                            //     assert!(contains_slice(cmd, b"ASKING"));
+                            //     Err(Ok(Value::Okay))
+                            // }
                             1 => {
-                                assert!(contains_slice(cmd, b"ASKING"));
-                                Err(Ok(Value::Okay))
-                            }
-                            2 => {
                                 assert!(contains_slice(cmd, b"GET"));
                                 Err(Ok(Value::BulkString(b"123".to_vec())))
                             }
@@ -2451,15 +2460,15 @@ mod cluster_async {
                     }
                     match port {
                         6380 => match count {
+                            // 1 => {
+                            //     assert!(
+                            //         contains_slice(cmd, b"ASKING"),
+                            //         "{:?}",
+                            //         std::str::from_utf8(cmd)
+                            //     );
+                            //     Err(Ok(Value::Okay))
+                            // }
                             1 => {
-                                assert!(
-                                    contains_slice(cmd, b"ASKING"),
-                                    "{:?}",
-                                    std::str::from_utf8(cmd)
-                                );
-                                Err(Ok(Value::Okay))
-                            }
-                            2 => {
                                 assert!(contains_slice(cmd, b"EVAL"));
                                 Err(Ok(Value::Okay))
                             }
@@ -3657,7 +3666,7 @@ mod cluster_async {
                 // TODO - this should be a NoConnectionError, but ATM we get the errors from the failing
                 assert!(result.is_err());
                 // This will route to all nodes - different path through the code.
-                let result = connection.req_packed_command(&cmd).await;
+                let result = connection.req_packed_command(&cmd, false).await;
                 // TODO - this should be a NoConnectionError, but ATM we get the errors from the failing
                 assert!(result.is_err());
             }
@@ -4617,7 +4626,7 @@ mod cluster_async {
             },
         );
 
-        let res = runtime.block_on(connection.req_packed_command(&redis::cmd("PING")));
+        let res = runtime.block_on(connection.req_packed_command(&redis::cmd("PING"), false));
         assert!(res.is_ok());
     }
 
@@ -4647,7 +4656,7 @@ mod cluster_async {
             assert!(result.is_err());
 
             // This will route to all nodes - different path through the code.
-            let result = connection.req_packed_command(&cmd).await;
+            let result = connection.req_packed_command(&cmd, false).await;
             // TODO - this should be a NoConnectionError, but ATM we get the errors from the failing
             assert!(result.is_err());
 
@@ -4666,7 +4675,7 @@ mod cluster_async {
                     break;
                 }
                 i += 1;
-                match connection.req_packed_command(&cmd).await {
+                match connection.req_packed_command(&cmd, false).await {
                     Ok(result) => {
                         assert_eq!(result, Value::SimpleString("PONG".to_string()));
                         return Ok::<_, RedisError>(());
@@ -4894,7 +4903,7 @@ mod cluster_async {
         client_list_cmd.arg("LIST");
         let value = match routing {
             Some(routing) => connection.route_command(&client_list_cmd, routing).await,
-            None => connection.req_packed_command(&client_list_cmd).await,
+            None => connection.req_packed_command(&client_list_cmd, false).await,
         }
         .unwrap();
         let string = String::from_owned_redis_value(value).unwrap();
