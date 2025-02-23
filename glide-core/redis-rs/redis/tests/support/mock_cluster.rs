@@ -348,7 +348,11 @@ pub fn respond_startup_with_config(
 
 #[cfg(feature = "cluster-async")]
 impl aio::ConnectionLike for MockConnection {
-    fn req_packed_command<'a>(&'a mut self, cmd: &'a redis::Cmd) -> RedisFuture<'a, Value> {
+    fn req_packed_command<'a>(
+        &'a mut self,
+        cmd: &'a redis::Cmd,
+        asking: bool,
+    ) -> RedisFuture<'a, Value> {
         Box::pin(future::ready(
             (self.handler)(&cmd.get_packed_command(), self.port)
                 .expect_err("Handler did not specify a response"),
@@ -360,6 +364,7 @@ impl aio::ConnectionLike for MockConnection {
         _pipeline: &'a redis::Pipeline,
         _offset: usize,
         _count: usize,
+        asking: bool,
     ) -> RedisFuture<'a, Vec<Value>> {
         Box::pin(future::ok(vec![]))
     }

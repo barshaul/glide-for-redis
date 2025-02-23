@@ -444,7 +444,7 @@ class CoreCommands(Protocol):
             TOK, await self._update_connection_password(password, immediate_auth)
         )
 
-    async def set(
+    def set(
         self,
         key: TEncodable,
         value: TEncodable,
@@ -512,9 +512,9 @@ class CoreCommands(Protocol):
             args.append("GET")
         if expiry is not None:
             args.extend(expiry.get_cmd_args())
-        return cast(Optional[bytes], await self._execute_command(RequestType.Set, args))
+        return cast(Optional[bytes], self._execute_command(RequestType.Set, args))
 
-    async def get(self, key: TEncodable) -> Optional[bytes]:
+    def get(self, key: TEncodable) -> Optional[bytes]:
         """
         Get the value associated with the given key, or null if no such value exists.
         See https://valkey.io/commands/get/ for details.
@@ -530,7 +530,7 @@ class CoreCommands(Protocol):
                 b'value'
         """
         args: List[TEncodable] = [key]
-        return cast(Optional[bytes], await self._execute_command(RequestType.Get, args))
+        return cast(Optional[bytes], self._execute_command(RequestType.Get, args))
 
     async def getdel(self, key: TEncodable) -> Optional[bytes]:
         """

@@ -404,7 +404,7 @@ impl Client {
                     Some(RoutingInfo::SingleNode(route)) => {
                         client.route_pipeline(pipeline, offset, 1, route).await
                     }
-                    _ => client.req_packed_commands(pipeline, offset, 1).await,
+                    _ => client.req_packed_commands(pipeline, offset, 1, false).await,
                 },
             }?;
 

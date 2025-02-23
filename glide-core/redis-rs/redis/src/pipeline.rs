@@ -144,7 +144,7 @@ impl Pipeline {
         C: crate::aio::ConnectionLike,
     {
         let value = con
-            .req_packed_commands(self, 0, self.commands.len())
+            .req_packed_commands(self, 0, self.commands.len(), false)
             .await?;
         Ok(self.make_pipeline_results(value))
     }
@@ -155,7 +155,7 @@ impl Pipeline {
         C: crate::aio::ConnectionLike,
     {
         let mut resp = con
-            .req_packed_commands(self, self.commands.len() + 1, 1)
+            .req_packed_commands(self, self.commands.len() + 1, 1, false)
             .await?;
         match resp.pop() {
             Some(Value::Nil) => Ok(Value::Nil),

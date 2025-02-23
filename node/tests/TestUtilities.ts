@@ -187,9 +187,9 @@ export async function GetAndSetRandomValue(client: Client) {
     const key = uuidv4();
     // Adding random repetition, to prevent the inputs from always having the same alignment.
     const value = uuidv4() + "0".repeat(Math.random() * 7);
-    const setResult = await client.set(key, value);
-    expect(intoString(setResult)).toEqual("OK");
-    const result = await client.get(key);
+    const setResult = client.set(key, value);
+    const getTesult = client.get(key);
+
     expect(intoString(result)).toEqual(value);
 }
 

@@ -388,8 +388,8 @@ pub(crate) struct InnerCore<C> {
     pending_requests: Mutex<Vec<PendingRequest<C>>>,
     slot_refresh_state: SlotRefreshState,
     initial_nodes: Vec<ConnectionInfo>,
-    subscriptions_by_address: TokioRwLock<HashMap<String, PubSubSubscriptionInfo>>,
-    unassigned_subscriptions: TokioRwLock<PubSubSubscriptionInfo>,
+    subscriptions_by_address: StdRwLock<HashMap<String, PubSubSubscriptionInfo>>,
+    unassigned_subscriptions: StdRwLock<PubSubSubscriptionInfo>,
     glide_connection_options: GlideConnectionOptions,
 }
 
@@ -435,7 +435,7 @@ where
                 "Failed to parse cluster info",
             )))?;
 
-        let cluster_info = node_conn.1.await.req_packed_command(&command).await;
+        let cluster_info = node_conn.1.await.req_packed_command(&command, false).await;
         match cluster_info {
             Ok(value) => {
                 let info_dict: Result<InfoDict, RedisError> =
@@ -1117,14 +1117,14 @@ where
             pending_requests: Mutex::new(Vec::new()),
             slot_refresh_state: SlotRefreshState::new(slots_refresh_rate_limiter),
             initial_nodes: initial_nodes.to_vec(),
-            unassigned_subscriptions: TokioRwLock::new(
+            unassigned_subscriptions: StdRwLock::new(
                 if let Some(subs) = cluster_params.pubsub_subscriptions {
                     subs.clone()
                 } else {
                     PubSubSubscriptionInfo::new()
                 },
             ),
-            subscriptions_by_address: TokioRwLock::new(Default::default()),
+            subscriptions_by_address: StdRwLock::new(Default::default()),
             glide_connection_options,
         });
         let mut connection = ClusterConnInner {
@@ -1394,9 +1394,10 @@ where
 
                 // Override subscriptions for this connection
                 let mut cluster_params = inner.cluster_params.read().expect(MUTEX_READ_ERR).clone();
-                let subs_guard = inner.subscriptions_by_address.read().await;
-                cluster_params.pubsub_subscriptions = subs_guard.get(&address).cloned();
-                drop(subs_guard);
+                {
+                    let subs_guard = inner.subscriptions_by_address.read().expect(MUTEX_READ_ERR);
+                    cluster_params.pubsub_subscriptions = subs_guard.get(&address).cloned();
+                }
 
                 let node = get_or_create_conn(
                     &address,
@@ -1572,7 +1573,7 @@ where
         let mut should_refresh_slots = true;
         if *policy == RefreshPolicy::Throttable {
             // Check if the current slot refresh is triggered before the wait duration has passed
-            let last_run_rlock = last_run.read().await;
+            let last_run_rlock = last_run.read().expect(MUTEX_READ_ERR);
             if let Some(last_run_time) = *last_run_rlock {
                 let passed_time = SystemTime::now()
                     .duration_since(last_run_time)
@@ -1693,8 +1694,14 @@ where
 
         let mut addrs_to_refresh: HashSet<String> = HashSet::new();
         {
-            let mut subs_by_address_guard = inner.subscriptions_by_address.write().await;
-            let mut unassigned_subs_guard = inner.unassigned_subscriptions.write().await;
+            let mut subs_by_address_guard = inner
+                .subscriptions_by_address
+                .write()
+                .expect(MUTEX_WRITE_ERR);
+            let mut unassigned_subs_guard = inner
+                .unassigned_subscriptions
+                .write()
+                .expect(MUTEX_WRITE_ERR);
             let conns_read_guard = inner.conn_lock.read().expect(MUTEX_READ_ERR);
             // validate active subscriptions location
             subs_by_address_guard.retain(|current_address, address_subs| {
@@ -1811,9 +1818,14 @@ where
     async fn refresh_slots(inner: Arc<InnerCore<C>>, curr_retry: usize) -> RedisResult<()> {
         // Update the slot refresh last run timestamp
         let now = SystemTime::now();
-        let mut last_run_wlock = inner.slot_refresh_state.last_run.write().await;
-        *last_run_wlock = Some(now);
-        drop(last_run_wlock);
+        {
+            let mut last_run_wlock = inner
+                .slot_refresh_state
+                .last_run
+                .write()
+                .expect(MUTEX_WRITE_ERR);
+            *last_run_wlock = Some(now);
+        }
         Self::refresh_slots_inner(inner, curr_retry).await
     }
 
@@ -1877,9 +1889,11 @@ where
                     let mut cluster_params = inner
                         .get_cluster_param(|params| params.clone())
                         .expect(MUTEX_READ_ERR);
-                    let subs_guard = inner.subscriptions_by_address.read().await;
-                    cluster_params.pubsub_subscriptions = subs_guard.get(&addr).cloned();
-                    drop(subs_guard);
+                    {
+                        let subs_guard =
+                            inner.subscriptions_by_address.read().expect(MUTEX_READ_ERR);
+                        cluster_params.pubsub_subscriptions = subs_guard.get(&addr).cloned();
+                    }
                     let node = get_or_create_conn(
                         &addr,
                         node,
@@ -2116,10 +2130,10 @@ where
 
         // if we reached this point, we're sending the command only to single node, and we need to find the
         // right connection to the node.
-        let (address, mut conn) = Self::get_connection(routing, core, Some(cmd.clone()))
+        let (address, mut conn, asking) = Self::get_connection(routing, core, Some(cmd.clone()))
             .await
             .map_err(|err| (OperationTarget::NotFound, err))?;
-        conn.req_packed_command(&cmd)
+        conn.req_packed_command(&cmd, asking)
             .await
             .map(Response::Single)
             .map_err(|err| (address.into(), err))
@@ -2129,11 +2143,12 @@ where
         pipeline: Arc<crate::Pipeline>,
         offset: usize,
         count: usize,
-        conn: impl Future<Output = RedisResult<(String, C)>>,
+        conn: impl Future<Output = RedisResult<(String, C, bool)>>,
     ) -> OperationResult {
         trace!("try_pipeline_request");
-        let (address, mut conn) = conn.await.map_err(|err| (OperationTarget::NotFound, err))?;
-        conn.req_packed_commands(&pipeline, offset, count)
+        let (address, mut conn, asking) =
+            conn.await.map_err(|err| (OperationTarget::NotFound, err))?;
+        conn.req_packed_commands(&pipeline, offset, count, asking)
             .await
             .map(Response::Multiple)
             .map_err(|err| (OperationTarget::Node { address }, err))
@@ -2184,7 +2199,7 @@ where
         routing: InternalSingleNodeRouting<C>,
         core: Core<C>,
         cmd: Option<Arc<Cmd>>,
-    ) -> RedisResult<(String, C)> {
+    ) -> RedisResult<(String, C, bool)> {
         let mut asking = false;
 
         let conn_check = match routing {
@@ -2247,7 +2262,7 @@ where
             }
             InternalSingleNodeRouting::Random => ConnectionCheck::RandomConnection,
             InternalSingleNodeRouting::Connection { address, conn } => {
-                return Ok((address, conn.await));
+                return Ok((address, conn.await, asking));
             }
             InternalSingleNodeRouting::ByAddress(address) => {
                 let conn_option = core
@@ -2256,7 +2271,7 @@ where
                     .expect(MUTEX_READ_ERR)
                     .connection_for_address(&address);
                 if let Some((address, conn)) = conn_option {
-                    return Ok((address, conn.await));
+                    return Ok((address, conn.await, asking));
                 } else {
                     return Err((
                         ErrorKind::ConnectionNotFoundForRoute,
@@ -2268,13 +2283,14 @@ where
             }
         };
 
-        let (address, mut conn) = match conn_check {
+        let (address, conn) = match conn_check {
             ConnectionCheck::Found((address, connection)) => (address, connection.await),
             ConnectionCheck::OnlyAddress(addr) => {
                 let mut this_conn_params = core.get_cluster_param(|params| params.clone())?;
-                let subs_guard = core.subscriptions_by_address.read().await;
-                this_conn_params.pubsub_subscriptions = subs_guard.get(addr.as_str()).cloned();
-                drop(subs_guard);
+                {
+                    let subs_guard = core.subscriptions_by_address.read().expect(MUTEX_READ_ERR);
+                    this_conn_params.pubsub_subscriptions = subs_guard.get(addr.as_str()).cloned();
+                }
                 match connect_and_check::<C>(
                     &addr,
                     this_conn_params,
@@ -2319,10 +2335,7 @@ where
             }
         };
 
-        if asking {
-            let _ = conn.req_packed_command(&crate::cmd::cmd("ASKING")).await;
-        }
-        Ok((address, conn))
+        Ok((address, conn, asking))
     }
 
     fn poll_recover(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), RedisError>> {
@@ -2699,7 +2712,7 @@ where
     let topology_join_results =
         futures::future::join_all(requested_nodes.into_iter().map(|(addr, conn)| async move {
             let mut conn: C = conn.await;
-            let res = conn.req_packed_command(&slot_cmd()).await;
+            let res = conn.req_packed_command(&slot_cmd(), false).await;
             (addr, res)
         }))
         .await;
@@ -2738,7 +2751,7 @@ impl<C> ConnectionLike for ClusterConnection<C>
 where
     C: ConnectionLike + Send + Clone + Unpin + Sync + Connect + 'static,
 {
-    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd, asking: bool) -> RedisFuture<'a, Value> {
         let routing = cluster_routing::RoutingInfo::for_routable(cmd).unwrap_or(
             cluster_routing::RoutingInfo::SingleNode(SingleNodeRoutingInfo::Random),
         );
@@ -2750,6 +2763,7 @@ where
         pipeline: &'a crate::Pipeline,
         offset: usize,
         count: usize,
+        asking: bool,
     ) -> RedisFuture<'a, Vec<Value>> {
         async move {
             let route = route_for_pipeline(pipeline)?;

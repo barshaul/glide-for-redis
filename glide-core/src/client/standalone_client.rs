@@ -334,7 +334,7 @@ impl StandaloneClient {
         reconnecting_connection: &ReconnectingConnection,
     ) -> RedisResult<Value> {
         let mut connection = reconnecting_connection.get_connection().await?;
-        let result = connection.send_packed_command(cmd).await;
+        let result = connection.send_packed_command(cmd, false).await;
         match result {
             Err(err) if err.is_unrecoverable_error() => {
                 log_warn("send request", format!("received disconnect error `{err}`"));
@@ -447,7 +447,7 @@ impl StandaloneClient {
         let reconnecting_connection = self.get_primary_connection();
         let mut connection = reconnecting_connection.get_connection().await?;
         let result = connection
-            .send_packed_commands(pipeline, offset, count)
+            .send_packed_commands(pipeline, offset, count, false)
             .await;
         match result {
             Err(err) if err.is_unrecoverable_error() => {
@@ -487,7 +487,7 @@ impl StandaloneClient {
                 };
                 log_debug("StandaloneClient", "performing heartbeat");
                 if connection
-                    .send_packed_command(&redis::cmd("PING"))
+                    .send_packed_command(&redis::cmd("PING"), false)
                     .await
                     .is_err_and(|err| err.is_connection_dropped() || err.is_connection_refusal())
                 {
@@ -587,7 +587,7 @@ async fn get_connection_and_replication_info(
     };
 
     match multiplexed_connection
-        .send_packed_command(redis::cmd("INFO").arg("REPLICATION"))
+        .send_packed_command(redis::cmd("INFO").arg("REPLICATION"), false)
         .await
     {
         Ok(replication_status) => {

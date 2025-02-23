@@ -708,7 +708,7 @@ where
         if let Some(object_type) = &cluster_scan_args.object_type {
             scan_command.arg("TYPE").arg(object_type.to_string());
         }
-        conn.req_packed_command(&scan_command).await
+        conn.req_packed_command(&scan_command, false).await
     } else {
         Err(RedisError::from((
             ErrorKind::ConnectionNotFoundForRoute,

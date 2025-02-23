@@ -320,7 +320,7 @@ impl ReconnectingConnection {
                 {
                     Ok(mut connection) => {
                         if connection
-                            .send_packed_command(&redis::cmd("PING"))
+                            .send_packed_command(&redis::cmd("PING"), false)
                             .await
                             .is_err()
                         {

@@ -37,22 +37,64 @@ const DEFAULT_CONNECTION_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
 // Senders which the result of a single request are sent through
 type PipelineOutput = oneshot::Sender<RedisResult<Value>>;
 
+/// Tracks indices of responses that should be ignored in a pipeline.
+///
+/// This struct is used to determine whether a specific response should be skipped
+/// when processing a pipeline request. It maintains a list of indices to ignore
+/// and tracks the current index as responses are processed.
+///
+/// # Fields:
+/// - `data`: A list of response indices that should be ignored.
+/// - `ignore_cursor`: The current position in `data`, tracking the last checked index.
+///
+/// # Example Usage:
+/// ```rust
+/// let mut ignore_responses = IgnoreResponses::new(vec![1, 3, 5]); // Ignore responses at index 1, 3, and 5
+///
+/// assert!(ignore_responses.should_ignore(1)); // True: index 1 should be ignored
+/// assert!(!ignore_responses.should_ignore(2)); // False: index 2 is processed normally
+/// assert!(ignore_responses.should_ignore(3)); // True: index 3 should be ignored
+
+struct IgnoreResponses {
+    data: Vec<usize>,
+    ignore_cursor: usize,
+}
+
+impl IgnoreResponses {
+    fn new(mut data: Vec<usize>) -> Self {
+        data.sort();
+        Self {
+            data,
+            ignore_cursor: 0,
+        }
+    }
+
+    fn should_ignore(&mut self, idx: &usize) -> bool {
+        if self.data.get(self.ignore_cursor) == Some(idx) {
+            self.ignore_cursor += 1;
+            return true;
+        }
+        false
+    }
+}
 enum ResponseAggregate {
     SingleCommand,
     Pipeline {
         expected_response_count: usize,
         current_response_count: usize,
+        ignore_responses: Option<IgnoreResponses>,
         buffer: Vec<Value>,
         first_err: Option<RedisError>,
     },
 }
 
 impl ResponseAggregate {
-    fn new(pipeline_response_count: Option<usize>) -> Self {
+    fn new(pipeline_response_count: Option<usize>, ignore_responses: Option<Vec<usize>>) -> Self {
         match pipeline_response_count {
             Some(response_count) => ResponseAggregate::Pipeline {
                 expected_response_count: response_count,
                 current_response_count: 0,
+                ignore_responses: ignore_responses.map(IgnoreResponses::new),
                 buffer: Vec::new(),
                 first_err: None,
             },
@@ -72,6 +114,7 @@ struct PipelineMessage<S> {
     output: PipelineOutput,
     // If `None`, this is a single request, not a pipeline of multiple requests.
     pipeline_response_count: Option<usize>,
+    ignore_responses: Option<Vec<usize>>,
 }
 
 /// Wrapper around a `Stream + Sink` where each item sent through the `Sink` results in one or more
@@ -80,7 +123,7 @@ struct PipelineMessage<S> {
 /// and `Sink`.
 #[derive(Clone)]
 pub(crate) struct Pipeline<SinkItem> {
-    sender: mpsc::Sender<PipelineMessage<SinkItem>>,
+    sender: mpsc::UnboundedSender<PipelineMessage<SinkItem>>,
     push_manager: Arc<ArcSwap<PushManager>>,
     is_stream_closed: Arc<AtomicBool>,
 }
@@ -180,16 +223,22 @@ where
             ResponseAggregate::Pipeline {
                 expected_response_count,
                 current_response_count,
+                ignore_responses,
                 buffer,
                 first_err,
             } => {
-                match result {
-                    Ok(item) => {
-                        buffer.push(item);
-                    }
-                    Err(err) => {
-                        if first_err.is_none() {
-                            *first_err = Some(err);
+                let should_skip_response = ignore_responses
+                    .as_mut()
+                    .is_some_and(|ignored| ignored.should_ignore(current_response_count));
+                if !should_skip_response {
+                    match result {
+                        Ok(item) => {
+                            buffer.push(item);
+                        }
+                        Err(err) => {
+                            if first_err.is_none() {
+                                *first_err = Some(err);
+                            }
                         }
                     }
                 }
@@ -203,7 +252,20 @@ where
 
                 let response = match first_err.take() {
                     Some(err) => Err(err),
-                    None => Ok(Value::Array(std::mem::take(buffer))),
+                    None => {
+                        if buffer.len() == 1 {
+                            // Don't wrap the resonse with array if we have a single response
+                            match buffer.drain(..).next() {
+                                None => Err(RedisError::from((
+                                    crate::ErrorKind::ClientError,
+                                    "Unexpected error: no values found in the response",
+                                ))),
+                                Some(value) => Ok(value),
+                            }
+                        } else {
+                            Ok(Value::Array(std::mem::take(buffer)))
+                        }
+                    }
                 };
 
                 // `Err` means that the receiver was dropped in which case it does not
@@ -241,6 +303,7 @@ where
             input,
             output,
             pipeline_response_count,
+            ignore_responses,
         }: PipelineMessage<SinkItem>,
     ) -> Result<(), Self::Error> {
         // If there is nothing to receive our output we do not need to send the message as it is
@@ -259,7 +322,8 @@ where
 
         match self_.sink_stream.start_send(input) {
             Ok(()) => {
-                let response_aggregate = ResponseAggregate::new(pipeline_response_count);
+                let response_aggregate =
+                    ResponseAggregate::new(pipeline_response_count, ignore_responses);
                 let entry = InFlight {
                     output,
                     response_aggregate,
@@ -321,8 +385,7 @@ where
         T::Error: Send,
         T::Error: ::std::fmt::Debug,
     {
-        const BUFFER_SIZE: usize = 50;
-        let (sender, mut receiver) = mpsc::channel(BUFFER_SIZE);
+        let (sender, mut receiver) = mpsc::unbounded_channel();
         let push_manager: Arc<ArcSwap<PushManager>> =
             Arc::new(ArcSwap::new(Arc::new(PushManager::default())));
         let is_stream_closed = Arc::new(AtomicBool::new(false));
@@ -352,7 +415,7 @@ where
         item: SinkItem,
         timeout: Duration,
     ) -> Result<Value, RedisError> {
-        self.send_recv(item, None, timeout).await
+        self.send_recv(item, None, None, timeout).await
     }
 
     async fn send_recv(
@@ -360,6 +423,7 @@ where
         input: SinkItem,
         // If `None`, this is a single request, not a pipeline of multiple requests.
         pipeline_response_count: Option<usize>,
+        ignore_responses: Option<Vec<usize>>,
         timeout: Duration,
     ) -> Result<Value, RedisError> {
         let (sender, receiver) = oneshot::channel();
@@ -369,8 +433,8 @@ where
                 input,
                 pipeline_response_count,
                 output: sender,
+                ignore_responses,
             })
-            .await
             .map_err(|err| {
                 // If an error occurs here, it means the request never reached the server, as guaranteed
                 // by the 'send' function. Since the server did not receive the data, it is safe to retry
@@ -517,11 +581,18 @@ impl MultiplexedConnection {
 
     /// Sends an already encoded (packed) command into the TCP socket and
     /// reads the single response from it.
-    pub async fn send_packed_command(&mut self, cmd: &Cmd) -> RedisResult<Value> {
-        let result = self
-            .pipeline
-            .send_single(cmd.get_packed_command(), self.response_timeout)
-            .await;
+    pub async fn send_packed_command(&mut self, cmd: &Cmd, asking: bool) -> RedisResult<Value> {
+        let result = if asking {
+            let mut packed_cmd = crate::cmd::cmd("ASKING").get_packed_command();
+            packed_cmd.append(&mut cmd.get_packed_command());
+            self.pipeline
+                .send_recv(packed_cmd, Some(2), Some(vec![0]), self.response_timeout)
+                .await
+        } else {
+            self.pipeline
+                .send_single(cmd.get_packed_command(), self.response_timeout)
+                .await
+        };
         if self.protocol != ProtocolVersion::RESP2 {
             if let Err(e) = &result {
                 if e.is_connection_dropped() {
@@ -543,13 +614,25 @@ impl MultiplexedConnection {
         &mut self,
         cmd: &crate::Pipeline,
         offset: usize,
-        count: usize,
+        mut count: usize,
+        asking: bool,
     ) -> RedisResult<Vec<Value>> {
+        let mut ignore_responses = None;
+        let packed_cmd = if asking {
+            let mut packed_cmd = crate::cmd::cmd("ASKING").get_packed_command();
+            packed_cmd.append(&mut cmd.get_packed_pipeline());
+            count += 1;
+            ignore_responses = Some(vec![0]);
+            packed_cmd
+        } else {
+            cmd.get_packed_pipeline()
+        };
         let result = self
             .pipeline
             .send_recv(
-                cmd.get_packed_pipeline(),
+                packed_cmd,
                 Some(offset + count),
+                ignore_responses,
                 self.response_timeout,
             )
             .await;
@@ -689,8 +772,8 @@ impl MultiplexedConnectionBuilder {
 }
 
 impl ConnectionLike for MultiplexedConnection {
-    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
-        (async move { self.send_packed_command(cmd).await }).boxed()
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd, asking: bool) -> RedisFuture<'a, Value> {
+        (async move { self.send_packed_command(cmd, asking).await }).boxed()
     }
 
     fn req_packed_commands<'a>(
@@ -698,8 +781,9 @@ impl ConnectionLike for MultiplexedConnection {
         cmd: &'a crate::Pipeline,
         offset: usize,
         count: usize,
+        asking: bool,
     ) -> RedisFuture<'a, Vec<Value>> {
-        (async move { self.send_packed_commands(cmd, offset, count).await }).boxed()
+        (async move { self.send_packed_commands(cmd, offset, count, asking).await }).boxed()
     }
 
     fn get_db(&self) -> i64 {
@@ -780,5 +864,179 @@ impl MultiplexedConnection {
     /// Returns `PushManager` of Connection, this method is used to subscribe/unsubscribe from Push types
     pub fn get_push_manager(&self) -> PushManager {
         self.push_manager.clone()
+    }
+}
+
+#[cfg(test)]
+mod test_multiplexed_connection {
+    use super::*;
+    use futures::task::noop_waker_ref;
+    use std::sync::Arc;
+    use std::task::Context;
+    use tokio::io::duplex;
+    use tokio::sync::oneshot;
+
+    /// Utility function to create a test pipeline sink with a stream
+    fn create_pipeline_sink(
+        response_aggregate: ResponseAggregate,
+    ) -> (
+        PipelineSink<impl Stream<Item = RedisResult<Value>>>,
+        oneshot::Receiver<RedisResult<Value>>,
+    ) {
+        let (_tx, rx) = duplex(64); // In-memory bi-directional stream
+
+        let test_stream = ValueCodec::default()
+            .framed(rx)
+            .and_then(|msg| async move { msg });
+
+        let push_manager = Arc::new(ArcSwap::new(Arc::new(PushManager::new())));
+        let disconnect_notifier = None;
+        let is_stream_closed = Arc::new(AtomicBool::new(false));
+
+        let mut sink = PipelineSink::new(
+            test_stream,
+            push_manager,
+            disconnect_notifier,
+            is_stream_closed,
+        );
+        let (output_tx, output_rx) = oneshot::channel();
+
+        let in_flight = InFlight {
+            response_aggregate,
+            output: output_tx,
+        };
+
+        sink.in_flight.push_back(in_flight);
+        (sink, output_rx)
+    }
+
+    /// Runs `poll_read()` on the pinned sink
+    fn poll_sink(sink: Pin<&mut PipelineSink<impl Stream<Item = RedisResult<Value>> + 'static>>) {
+        let mut ctx = Context::from_waker(noop_waker_ref());
+        let _ = sink.poll_read(&mut ctx);
+    }
+
+    /// **Test: Pipeline collects all responses when `ignore_responses` is `None`**
+    #[tokio::test]
+    async fn test_pipeline_collects_all_responses() {
+        let response_agg = ResponseAggregate::Pipeline {
+            expected_response_count: 2,
+            current_response_count: 0,
+            ignore_responses: None,
+            buffer: vec![],
+            first_err: None,
+        };
+        let (mut sink, output_rx) = create_pipeline_sink(response_agg);
+        let mut pinned = std::pin::pin!(sink);
+
+        pinned.as_mut().send_result(Ok(Value::Int(1)));
+        pinned.as_mut().send_result(Ok(Value::Int(2)));
+
+        poll_sink(pinned.as_mut());
+
+        let result = output_rx.await.unwrap();
+        assert_eq!(result, Ok(Value::Array(vec![Value::Int(1), Value::Int(2)])));
+    }
+
+    /// **Test: Pipeline skips ignored responses**
+    #[tokio::test]
+    async fn test_pipeline_skips_ignored_responses() {
+        let response_agg = ResponseAggregate::Pipeline {
+            expected_response_count: 3,
+            current_response_count: 0,
+            ignore_responses: Some(IgnoreResponses::new(vec![1, 3])), // Ignore index 1
+            buffer: vec![],
+            first_err: None,
+        };
+        let (mut sink, output_rx) = create_pipeline_sink(response_agg);
+        let mut pinned = std::pin::pin!(sink);
+
+        pinned.as_mut().send_result(Ok(Value::Int(100)));
+        pinned.as_mut().send_result(Ok(Value::Int(200))); // This should be ignored
+        pinned.as_mut().send_result(Ok(Value::Int(300)));
+        pinned.as_mut().send_result(Ok(Value::Int(400))); // This should be ignored
+
+        poll_sink(pinned.as_mut());
+        let result = output_rx.await.unwrap();
+        assert_eq!(
+            result,
+            Ok(Value::Array(vec![Value::Int(100), Value::Int(300)]))
+        ); // Responses 200 and 400 are ignored
+    }
+
+    /// **Test: Pipeline returns a single value instead of an array**
+    #[tokio::test]
+    async fn test_pipeline_returns_single_value() {
+        let response_agg = ResponseAggregate::Pipeline {
+            expected_response_count: 2,
+            current_response_count: 0,
+            ignore_responses: Some(IgnoreResponses::new(vec![0])),
+            buffer: vec![],
+            first_err: None,
+        };
+        let (mut sink, output_rx) = create_pipeline_sink(response_agg);
+        let mut pinned = std::pin::pin!(sink);
+
+        pinned.as_mut().send_result(Ok(Value::Okay)); // This should be ignored
+        pinned.as_mut().send_result(Ok(Value::Int(42)));
+
+        poll_sink(pinned.as_mut());
+
+        let result = output_rx.await.unwrap();
+        assert_eq!(result, Ok(Value::Int(42))); // Single response should not be wrapped in an array
+    }
+
+    /// **Test: Pipeline correctly handles errors**
+    #[tokio::test]
+    async fn test_pipeline_handles_errors_if_not_ignored() {
+        let response_agg = ResponseAggregate::Pipeline {
+            expected_response_count: 3,
+            current_response_count: 0,
+            ignore_responses: None,
+            buffer: vec![],
+            first_err: None,
+        };
+        let (mut sink, output_rx) = create_pipeline_sink(response_agg);
+        let mut pinned = std::pin::pin!(sink);
+
+        pinned.as_mut().send_result(Ok(Value::Int(10)));
+        pinned.as_mut().send_result(Err(crate::RedisError::from((
+            crate::ErrorKind::ClientError,
+            "Test Error",
+        ))));
+        pinned.as_mut().send_result(Ok(Value::Int(30)));
+
+        poll_sink(pinned.as_mut());
+
+        let result = output_rx.await.unwrap();
+        assert!(result.is_err()); // Ensure an error response is returned
+    }
+    /// **Test: Pipeline correctly ignores errors**
+    #[tokio::test]
+    async fn test_pipeline_skips_ignored_errors() {
+        let response_agg = ResponseAggregate::Pipeline {
+            expected_response_count: 3,
+            current_response_count: 0,
+            ignore_responses: Some(IgnoreResponses::new(vec![1])),
+            buffer: vec![],
+            first_err: None,
+        };
+        let (mut sink, output_rx) = create_pipeline_sink(response_agg);
+        let mut pinned = std::pin::pin!(sink);
+
+        pinned.as_mut().send_result(Ok(Value::Int(10)));
+        pinned.as_mut().send_result(Err(crate::RedisError::from((
+            crate::ErrorKind::ClientError,
+            "Test Error",
+        ))));
+        pinned.as_mut().send_result(Ok(Value::Int(30)));
+
+        poll_sink(pinned.as_mut());
+
+        let result = output_rx.await.unwrap();
+        assert_eq!(
+            result,
+            Ok(Value::Array(vec![Value::Int(10), Value::Int(30)]))
+        );
     }
 }

@@ -1037,9 +1037,11 @@ export class BaseClient {
         options: WritePromiseOptions = {},
     ): Promise<T> {
         this.ensureClientIsOpen();
+        console.log("smoke");
 
         const route = this.toProtobufRoute(options?.route);
         return new Promise((resolve, reject) => {
+            console.log("it runs!!!");
             const callbackIndex = this.getCallbackIndex();
             this.promiseCallbackFunctions[callbackIndex] = [
                 resolve,
