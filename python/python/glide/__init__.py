@@ -165,13 +165,12 @@ from glide.routes import (
     SlotKeyRoute,
     SlotType,
 )
-from glide.glide_sync_client import GlideSync
 from .glide import ClusterScanCursor, Script
 PubSubMsg = CoreCommands.PubSubMsg
 
 __all__ = [
     # Client
-    "GlideSync",
+    "BaseClient",
     "GlideClient",
     "GlideClusterClient",
     "Transaction",

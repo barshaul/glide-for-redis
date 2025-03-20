@@ -65,7 +65,7 @@ from glide.constants import (
 from glide.protobuf.command_request_pb2 import RequestType
 from glide.routes import Route
 
-from ..glide import ClusterScanCursor
+from ...glide import ClusterScanCursor
 
 
 class ConditionalChange(Enum):

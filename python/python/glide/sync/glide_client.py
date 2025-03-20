@@ -1,20 +1,37 @@
 from cffi import FFI
+import sys
 from glide.protobuf.command_request_pb2 import Command, CommandRequest, RequestType
 from typing import List, Union, Optional, cast
-from glide.sync_commands.core import CoreCommands, InfoSection
+from glide.sync.sync_commands.core import CoreCommands
+from glide.sync.sync_commands.cluster_commands import ClusterCommands
+from glide.sync.sync_commands.standalone_commands import StandaloneCommands
 from glide.constants import DEFAULT_READ_BYTES_SIZE, OK, TEncodable, TRequest, TResult
 from glide.routes import Route
 from glide.exceptions import ClosingError, RequestError
-from glide.config import GlideClusterClientConfiguration
+from glide.config import BaseClientConfiguration, GlideClientConfiguration, GlideClusterClientConfiguration
 from glide.glide_client import get_request_error_class
+if sys.version_info >= (3, 11):
+    import asyncio as async_timeout
+    from typing import Self
+
 
 # Enum values must match the Rust definition
 class FFIClientTypeEnum:
     Async = 0
     Sync = 1
+
+
+class BaseClient(CoreCommands):    
     
-class GlideSync(CoreCommands):        
-    def __init__(self, config):
+    def __init__(self, config: BaseClientConfiguration):
+            """
+            To create a new client, use the `create` classmethod
+            """
+            self.config: BaseClientConfiguration = config
+            
+    @classmethod
+    def create(cls, config: BaseClientConfiguration) -> Self:
+        self = cls(config)
         self._init_ffi()
         self.config = config
         conn_req = config._create_a_protobuf_conn_request(cluster_mode=type(config) == GlideClusterClientConfiguration)
@@ -36,6 +53,7 @@ class GlideSync(CoreCommands):
             self.lib.free_connection_response(client_response_ptr)
         else:
             raise ClosingError("Failed to create client, response pointer is NULL.")
+        return self
 
     def _init_ffi(self):
         self.ffi = FFI()
@@ -124,7 +142,7 @@ class GlideSync(CoreCommands):
         """)
 
         # Load the shared library (adjust the path to your compiled Rust library)
-        self.lib = self.ffi.dlopen("/home/ubuntu/glide-for-redis/go/target/debug/libglide_rs.so")
+        self.lib = self.ffi.dlopen("/home/ubuntu/valkey-glide/go/target/debug/libglide_rs.so")
         
     def _handle_response(self, message):
         if message == self.ffi.NULL:
@@ -195,6 +213,8 @@ class GlideSync(CoreCommands):
             elif isinstance(arg, (int, float)):
                 # Convert numeric values to strings and then to bytes
                 arg_bytes = str(arg).encode('utf-8')
+            elif isinstance (arg, bytes):
+                arg_bytes = arg
             else:
                 raise ValueError(f"Unsupported argument type: {type(arg)}")
 
@@ -254,47 +274,23 @@ class GlideSync(CoreCommands):
             len(route_bytes)
         )
         return self._handle_cmd_result(result)
-
-    # TODO: remove function once StandaloneCommands and ClusterCommands are added
-    def custom_command(self, command_args: List[TEncodable]) -> TResult:
-        """
-        Executes a single command, without checking inputs.
-        See the [Valkey GLIDE Wiki](https://github.com/valkey-io/valkey-glide/wiki/General-Concepts#custom-command)
-        for details on the restrictions and limitations of the custom command API.
-
-            @example - Return a list of all pub/sub clients:
-
-                connection.customCommand(["CLIENT", "LIST","TYPE", "PUBSUB"])
-        Args:
-            command_args (List[TEncodable]): List of the command's arguments, where each argument is either a string or bytes.
-            Every part of the command, including the command name and subcommands, should be added as a separate value in args.
-
-        Returns:
-            TResult: The returning value depends on the executed command.
-        """
-        return self._execute_command(RequestType.CustomCommand, command_args)
-
+    
     def close(self):
         self.lib.close_client(self.core_client)
-
-    # TODO: remove function once StandaloneCommands and ClusterCommands are added
-    def info(
-        self,
-        sections: Optional[List[InfoSection]] = None,
-    ) -> bytes:
-        """
-        Get information and statistics about the server.
-        See https://valkey.io/commands/info/ for details.
-
-        Args:
-            sections (Optional[List[InfoSection]]): A list of InfoSection values specifying which sections of
-            information to retrieve. When no parameter is provided, the default option is assumed.
+    
+class GlideClusterClient(BaseClient, ClusterCommands):
+    """
+    Client used for connection to cluster servers.
+    For full documentation, see
+    https://github.com/valkey-io/valkey-glide/wiki/Python-wrapper#cluster
+    """
 
 
-        Returns:
-            bytes: Returns bytes containing the information for the sections requested.
-        """
-        args: List[TEncodable] = (
-            [section.value for section in sections] if sections else []
-        )
-        return cast(bytes, self._execute_command(RequestType.Info, args))
+class GlideClient(BaseClient, StandaloneCommands):
+    """
+    Client used for connection to standalone servers.
+    For full documentation, see
+    https://github.com/valkey-io/valkey-glide/wiki/Python-wrapper#standalone
+    """
+
+TGlideClient = Union[GlideClient, GlideClusterClient]

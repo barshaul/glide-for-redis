@@ -22,11 +22,11 @@ from glide import (
     UDSGlideClientSync,
     GlideClusterClientConfiguration,
     GlideClientConfiguration,
-    GlideSync,
     Logger,
     LogLevel,
     NodeAddress,
 )
+from glide.sync import BaseClient
 
 
 class ChosenAction(Enum):
@@ -319,7 +319,7 @@ def main(
         clients = create_clients(
             client_count,
             # lambda: client_class.create(config),
-            lambda: GlideSync(),
+            lambda: BaseClient(),
         )
         run_clients(
             clients,
