@@ -3,7 +3,7 @@
 import threading
 from typing import List, Mapping, Optional, Tuple, TypeVar, Union
 
-from glide.async_commands.bitmap import (
+from glide.shared_commands.bitmap import (
     BitFieldGet,
     BitFieldSubCommands,
     BitwiseOperation,
@@ -11,7 +11,7 @@ from glide.async_commands.bitmap import (
     _create_bitfield_args,
     _create_bitfield_read_only_args,
 )
-from glide.async_commands.command_args import Limit, ListDirection, OrderBy
+from glide.shared_commands.command_args import Limit, ListDirection, OrderBy
 from glide.async_commands.core import (
     ConditionalChange,
     ExpireOptions,
@@ -26,7 +26,7 @@ from glide.async_commands.core import (
     UpdateOptions,
     _build_sort_args,
 )
-from glide.async_commands.sorted_set import (
+from glide.shared_commands.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -42,7 +42,7 @@ from glide.async_commands.sorted_set import (
     _create_zinter_zunion_cmd_args,
     _create_zrange_args,
 )
-from glide.async_commands.stream import (
+from glide.shared_commands.stream import (
     StreamAddOptions,
     StreamClaimOptions,
     StreamGroupOptions,

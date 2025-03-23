@@ -2,8 +2,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Mapping, Optional
 
-from glide.async_commands.command_args import OrderBy
-from glide.async_commands.server_modules.ft_options.ft_constants import (
+from glide.shared_commands.command_args import OrderBy
+from glide.shared_commands.server_modules.ft_options.ft_constants import (
     FtAggregateKeywords,
 )
 from glide.constants import TEncodable

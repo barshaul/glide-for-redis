@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 import pytest
 from glide import ClosingError, RequestError, Script
-from glide.async_commands.bitmap import (
+from glide.shared_commands.bitmap import (
     BitFieldGet,
     BitFieldIncrBy,
     BitFieldOverflow,
@@ -25,7 +25,7 @@ from glide.async_commands.bitmap import (
     SignedEncoding,
     UnsignedEncoding,
 )
-from glide.async_commands.command_args import Limit, ListDirection, OrderBy
+from glide.shared_commands.command_args import Limit, ListDirection, OrderBy
 from glide.async_commands.core import (
     ConditionalChange,
     ExpireOptions,
@@ -41,7 +41,7 @@ from glide.async_commands.core import (
     OnlyIfEqual,
     UpdateOptions,
 )
-from glide.async_commands.sorted_set import (
+from glide.shared_commands.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -55,7 +55,7 @@ from glide.async_commands.sorted_set import (
     ScoreBoundary,
     ScoreFilter,
 )
-from glide.async_commands.stream import (
+from glide.shared_commands.stream import (
     ExclusiveIdBound,
     IdBound,
     MaxId,
@@ -69,7 +69,7 @@ from glide.async_commands.stream import (
     TrimByMaxLen,
     TrimByMinId,
 )
-from glide.async_commands.transaction import ClusterTransaction, Transaction
+from glide.shared_commands.transaction import ClusterTransaction, Transaction
 from glide.config import (
     GlideClientConfiguration,
     GlideClusterClientConfiguration,

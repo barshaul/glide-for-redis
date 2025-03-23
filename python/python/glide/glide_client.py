@@ -6,7 +6,7 @@ import threading
 from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 from glide.async_commands.cluster_commands import ClusterCommands
-from glide.async_commands.command_args import ObjectType
+from glide.shared_commands.command_args import ObjectType
 from glide.async_commands.core import CoreCommands
 from glide.async_commands.standalone_commands import StandaloneCommands
 from glide.config import BaseClientConfiguration, ServerCredentials

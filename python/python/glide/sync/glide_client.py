@@ -142,7 +142,7 @@ class BaseClient(CoreCommands):
         """)
 
         # Load the shared library (adjust the path to your compiled Rust library)
-        self.lib = self.ffi.dlopen("/home/ubuntu/valkey-glide/go/target/debug/libglide_rs.so")
+        self.lib = self.ffi.dlopen("/home/ubuntu/glide-for-redis/go/target/debug/libglide_rs.so")
         
     def _handle_response(self, message):
         if message == self.ffi.NULL:

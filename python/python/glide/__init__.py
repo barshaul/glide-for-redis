@@ -1,6 +1,6 @@
 # Copyright Valkey GLIDE Project Contributors - SPDX Identifier: Apache-2.0
 
-from glide.async_commands.bitmap import (
+from glide.shared_commands.bitmap import (
     BitEncoding,
     BitFieldGet,
     BitFieldIncrBy,
@@ -17,7 +17,7 @@ from glide.async_commands.bitmap import (
     SignedEncoding,
     UnsignedEncoding,
 )
-from glide.async_commands.command_args import Limit, ListDirection, ObjectType, OrderBy
+from glide.shared_commands.command_args import Limit, ListDirection, ObjectType, OrderBy
 from glide.async_commands.core import (
     ConditionalChange,
     CoreCommands,
@@ -33,8 +33,8 @@ from glide.async_commands.core import (
     OnlyIfEqual,
     UpdateOptions,
 )
-from glide.async_commands.server_modules import ft, glide_json, json_batch
-from glide.async_commands.server_modules.ft_options.ft_aggregate_options import (
+from glide.shared_commands.server_modules import ft, glide_json
+from glide.shared_commands.server_modules.ft_options.ft_aggregate_options import (
     FtAggregateApply,
     FtAggregateClause,
     FtAggregateFilter,
@@ -45,7 +45,7 @@ from glide.async_commands.server_modules.ft_options.ft_aggregate_options import 
     FtAggregateSortBy,
     FtAggregateSortProperty,
 )
-from glide.async_commands.server_modules.ft_options.ft_create_options import (
+from glide.shared_commands.server_modules.ft_options.ft_create_options import (
     DataType,
     DistanceMetricType,
     Field,
@@ -61,21 +61,21 @@ from glide.async_commands.server_modules.ft_options.ft_create_options import (
     VectorFieldAttributesHnsw,
     VectorType,
 )
-from glide.async_commands.server_modules.ft_options.ft_profile_options import (
+from glide.shared_commands.server_modules.ft_options.ft_profile_options import (
     FtProfileOptions,
     QueryType,
 )
-from glide.async_commands.server_modules.ft_options.ft_search_options import (
+from glide.shared_commands.server_modules.ft_options.ft_search_options import (
     FtSearchLimit,
     FtSearchOptions,
     ReturnField,
 )
-from glide.async_commands.server_modules.glide_json import (
+from glide.shared_commands.server_modules.glide_json import (
     JsonArrIndexOptions,
     JsonArrPopOptions,
     JsonGetOptions,
 )
-from glide.async_commands.sorted_set import (
+from glide.shared_commands.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -90,7 +90,7 @@ from glide.async_commands.sorted_set import (
     ScoreBoundary,
     ScoreFilter,
 )
-from glide.async_commands.stream import (
+from glide.shared_commands.stream import (
     ExclusiveIdBound,
     IdBound,
     MaxId,
@@ -106,7 +106,7 @@ from glide.async_commands.stream import (
     TrimByMaxLen,
     TrimByMinId,
 )
-from glide.async_commands.transaction import (
+from glide.shared_commands.transaction import (
     ClusterTransaction,
     Transaction,
     TTransaction,

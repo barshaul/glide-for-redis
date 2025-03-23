@@ -1,5 +1,10 @@
 import asyncio
-import json
+from typing import List, Tuple, Optional
+
+from glide.shared_commands.server_modules import glide_json as json
+from glide.shared_commands_server_modules import ft
+from glide.constants import OK, FtSearchResponse, TEncodable
+
 import uuid
 from typing import List, Optional, Tuple
 
@@ -14,14 +19,14 @@ from glide import (
     NodeAddress,
     RequestError,
 )
-from glide import TimeoutError as GlideTimeoutError
-from glide.async_commands.server_modules import ft, glide_json
-from glide.async_commands.server_modules.ft_options.ft_create_options import (
+
+from glide.shared_commands.server_modules.ft_options.ft_create_options import (
     DataType,
     FtCreateOptions,
     NumericField,
 )
-from glide.async_commands.server_modules.ft_options.ft_search_options import (
+
+from glide.shared_commands.server_modules.ft_options.ft_search_options import (
     FtSearchOptions,
     ReturnField,
 )

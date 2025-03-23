@@ -16,7 +16,7 @@ from typing import (
     get_args,
 )
 
-from glide.async_commands.bitmap import (
+from glide.shared_commands.bitmap import (
     BitFieldGet,
     BitFieldSubCommands,
     BitmapIndexType,
@@ -25,8 +25,8 @@ from glide.async_commands.bitmap import (
     _create_bitfield_args,
     _create_bitfield_read_only_args,
 )
-from glide.async_commands.command_args import Limit, ListDirection, ObjectType, OrderBy
-from glide.async_commands.sorted_set import (
+from glide.shared_commands.command_args import Limit, ListDirection, ObjectType, OrderBy
+from glide.shared_commands.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -44,7 +44,7 @@ from glide.async_commands.sorted_set import (
     _create_zinter_zunion_cmd_args,
     _create_zrange_args,
 )
-from glide.async_commands.stream import (
+from glide.shared_commands.stream import (
     StreamAddOptions,
     StreamClaimOptions,
     StreamGroupOptions,
