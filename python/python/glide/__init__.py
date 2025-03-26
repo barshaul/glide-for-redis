@@ -1,6 +1,6 @@
 # Copyright Valkey GLIDE Project Contributors - SPDX Identifier: Apache-2.0
 
-from glide.shared_commands.bitmap import (
+from glide.command_options.bitmap import (
     BitEncoding,
     BitFieldGet,
     BitFieldIncrBy,
@@ -17,10 +17,10 @@ from glide.shared_commands.bitmap import (
     SignedEncoding,
     UnsignedEncoding,
 )
-from glide.shared_commands.command_args import Limit, ListDirection, ObjectType, OrderBy
-from glide.async_commands.core import (
+from glide.command_options.command_args import Limit, ListDirection, ObjectType, OrderBy
+from glide.async_commands.core import CoreCommands,
+from glide.command_options.core_options import (
     ConditionalChange,
-    CoreCommands,
     ExpireOptions,
     ExpiryGetEx,
     ExpirySet,
@@ -33,8 +33,8 @@ from glide.async_commands.core import (
     OnlyIfEqual,
     UpdateOptions,
 )
-from glide.shared_commands.server_modules import ft, glide_json
-from glide.shared_commands.server_modules.ft_options.ft_aggregate_options import (
+from glide.command_options.server_modules import ft, glide_json
+from glide.command_options.server_modules.ft_options.ft_aggregate_options import (
     FtAggregateApply,
     FtAggregateClause,
     FtAggregateFilter,
@@ -45,7 +45,7 @@ from glide.shared_commands.server_modules.ft_options.ft_aggregate_options import
     FtAggregateSortBy,
     FtAggregateSortProperty,
 )
-from glide.shared_commands.server_modules.ft_options.ft_create_options import (
+from glide.command_options.server_modules.ft_options.ft_create_options import (
     DataType,
     DistanceMetricType,
     Field,
@@ -61,21 +61,21 @@ from glide.shared_commands.server_modules.ft_options.ft_create_options import (
     VectorFieldAttributesHnsw,
     VectorType,
 )
-from glide.shared_commands.server_modules.ft_options.ft_profile_options import (
+from glide.command_options.server_modules.ft_options.ft_profile_options import (
     FtProfileOptions,
     QueryType,
 )
-from glide.shared_commands.server_modules.ft_options.ft_search_options import (
+from glide.command_options.server_modules.ft_options.ft_search_options import (
     FtSearchLimit,
     FtSearchOptions,
     ReturnField,
 )
-from glide.shared_commands.server_modules.glide_json import (
+from glide.command_options.server_modules.glide_json import (
     JsonArrIndexOptions,
     JsonArrPopOptions,
     JsonGetOptions,
 )
-from glide.shared_commands.sorted_set import (
+from glide.command_options.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -90,7 +90,7 @@ from glide.shared_commands.sorted_set import (
     ScoreBoundary,
     ScoreFilter,
 )
-from glide.shared_commands.stream import (
+from glide.command_options.stream import (
     ExclusiveIdBound,
     IdBound,
     MaxId,
@@ -106,7 +106,7 @@ from glide.shared_commands.stream import (
     TrimByMaxLen,
     TrimByMinId,
 )
-from glide.shared_commands.transaction import (
+from glide.command_options.transaction import (
     ClusterTransaction,
     Transaction,
     TTransaction,

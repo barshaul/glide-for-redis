@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Set, Union, cast
 
-from glide.shared_commands.command_args import Limit, ObjectType, OrderBy
-from glide.async_commands.core import (
-    CoreCommands,
+from glide.command_options.command_args import Limit, ObjectType, OrderBy
+from glide.async_commands.core import CoreCommands
+from glide.command_options.core_options import (
     FlushMode,
     FunctionRestorePolicy,
     InfoSection,
     _build_sort_args,
 )
-from glide.shared_commands.transaction import ClusterTransaction
+from glide.command_options.transaction import ClusterTransaction
 from glide.constants import (
     TOK,
     TClusterResponse,

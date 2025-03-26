@@ -18,9 +18,9 @@ from glide.config import (
 from glide.exceptions import ClosingError
 from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
 from glide.sync import (
-    TGlideClient as TGlideClientSync,
-    GlideClient as GlideClientSync,
-    GlideClusterClient as GlideClusterClientSync
+    TGlideClient as TSyncGlideClient,
+    GlideClient as SyncGlideClient,
+    GlideClusterClient as SyncGlideClusterClient
 )
 from glide.logger import Level as logLevel
 from glide.logger import Logger
@@ -239,7 +239,7 @@ def glide_sync_client(
     request,
     cluster_mode: bool,
     protocol: ProtocolVersion,
-) -> Generator[TGlideClientSync, None, None]:
+) -> Generator[TSyncGlideClient, None, None]:
     "Get async socket client for tests"
     client = create_sync_client(request, cluster_mode, protocol=protocol)
     yield client
@@ -449,7 +449,7 @@ def create_sync_client(
     read_from: ReadFrom = ReadFrom.PRIMARY,
     client_az: Optional[str] = None,
     valkey_cluster: Optional[ValkeyCluster] = None,
-) -> TGlideClientSync:
+) -> TSyncGlideClient:
     # Create sync client
     config = create_client_config(
         request, 
@@ -467,9 +467,9 @@ def create_sync_client(
         client_az, 
         valkey_cluster)
     if cluster_mode:
-        return GlideClusterClientSync.create(config)
+        return SyncGlideClusterClient.create(config)
     else:
-        return GlideClientSync.create(config)
+        return SyncGlideClient.create(config)
 
 NEW_PASSWORD = "new_secure_password"
 WRONG_PASSWORD = "wrong_password"

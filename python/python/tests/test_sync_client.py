@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Union, cast
 
 import pytest
 from glide import ClosingError, RequestError, Script
-from glide.shared_commands.bitmap import (
+from glide.command_options.bitmap import (
     BitFieldGet,
     BitFieldIncrBy,
     BitFieldOverflow,
@@ -27,8 +27,9 @@ from glide.shared_commands.bitmap import (
     SignedEncoding,
     UnsignedEncoding,
 )
-from glide.shared_commands.command_args import Limit, ListDirection, OrderBy
-from glide.async_commands.core import (
+from glide.command_options.command_args import Limit, ListDirection, OrderBy
+from glide.async_commands.core import InfBound
+from glide.command_options.core_options import (
     ConditionalChange,
     ExpireOptions,
     ExpiryGetEx,
@@ -37,12 +38,11 @@ from glide.async_commands.core import (
     ExpiryTypeGetEx,
     FlushMode,
     FunctionRestorePolicy,
-    InfBound,
     InfoSection,
     InsertPosition,
     UpdateOptions,
 )
-from glide.shared_commands.sorted_set import (
+from glide.command_options.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -57,7 +57,7 @@ from glide.shared_commands.sorted_set import (
     ScoreBoundary,
     ScoreFilter,
 )
-from glide.shared_commands.stream import (
+from glide.command_options.stream import (
     ExclusiveIdBound,
     IdBound,
     MaxId,
@@ -71,7 +71,7 @@ from glide.shared_commands.stream import (
     TrimByMaxLen,
     TrimByMinId,
 )
-from glide.shared_commands.transaction import ClusterTransaction, Transaction
+from glide.command_options.transaction import ClusterTransaction, Transaction
 from glide.config import (
     GlideClientConfiguration,
     GlideClusterClientConfiguration,

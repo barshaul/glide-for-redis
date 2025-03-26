@@ -19,7 +19,7 @@ Examples:
 """
 from typing import List, Optional, Union, cast
 
-from glide.async_commands.core import ConditionalChange
+from glide.command_options.core_options import ConditionalChange
 from glide.constants import TOK, TEncodable, TJsonResponse, TJsonUniversalResponse
 from glide.glide_client import TGlideClient
 

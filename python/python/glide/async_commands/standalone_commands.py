@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Dict, List, Mapping, Optional, Union, cast
 
-from glide.shared_commands.command_args import ObjectType
-from glide.async_commands.core import (
-    CoreCommands,
+from glide.command_options.command_args import ObjectType
+from glide.async_commands.core import CoreCommands
+from glide.command_options.core_options import (
     FlushMode,
     FunctionRestorePolicy,
     InfoSection,
 )
-from glide.shared_commands.transaction import Transaction
+from glide.command_options.transaction import Transaction
 from glide.constants import (
     TOK,
     TEncodable,

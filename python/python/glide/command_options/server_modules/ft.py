@@ -5,21 +5,21 @@ module for `vector search` commands.
 
 from typing import List, Mapping, Optional, cast
 
-from glide.shared_commands.server_modules.ft_options.ft_aggregate_options import (
+from glide.command_options.server_modules.ft_options.ft_aggregate_options import (
     FtAggregateOptions,
 )
-from glide.shared_commands.server_modules.ft_options.ft_constants import (
+from glide.command_options.server_modules.ft_options.ft_constants import (
     CommandNames,
     FtCreateKeywords,
 )
-from glide.shared_commands.server_modules.ft_options.ft_create_options import (
+from glide.command_options.server_modules.ft_options.ft_create_options import (
     Field,
     FtCreateOptions,
 )
-from glide.shared_commands.server_modules.ft_options.ft_profile_options import (
+from glide.command_options.server_modules.ft_options.ft_profile_options import (
     FtProfileOptions,
 )
-from glide.shared_commands.server_modules.ft_options.ft_search_options import (
+from glide.command_options.server_modules.ft_options.ft_search_options import (
     FtSearchOptions,
 )
 from glide.constants import (

@@ -11,7 +11,6 @@ from glide.exceptions import ClosingError, RequestError
 from glide.config import BaseClientConfiguration, GlideClientConfiguration, GlideClusterClientConfiguration
 from glide.glide_client import get_request_error_class
 if sys.version_info >= (3, 11):
-    import asyncio as async_timeout
     from typing import Self
 
 

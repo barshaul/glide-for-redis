@@ -1,7 +1,7 @@
 import asyncio
 from typing import List, Tuple, Optional
 
-from glide.shared_commands.server_modules import glide_json as json
+from glide.command_options.server_modules import glide_json as json
 
 from glide import AllNodes, ClosingError
 from glide import ConnectionError as GlideConnectionError
