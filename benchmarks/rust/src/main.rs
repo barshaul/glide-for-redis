@@ -101,7 +101,7 @@ async fn perform_benchmark(args: Args) {
         let number_of_operations = if args.minimal {
             1000
         } else {
-            2000000
+            1000000
             // max(100000, concurrent_tasks_count * 100000)
         };
 
@@ -254,36 +254,38 @@ async fn perform_operation(
     value: String,
 ) -> ChosenAction {
     let mut cmd = redis::Cmd::new();
+    let var = std::env::var("KEY").unwrap();
     let action = if is_burst {
         // Always GET during bursts (random key, may exist or not)
-        cmd.arg("GET").arg(1);
+        cmd.arg("GET").arg(var);
         ChosenAction::GetExisting
     } else {
-        if rand::thread_rng().gen_bool(PROB_GET) {
-            if rand::thread_rng().gen_bool(PROB_GET_EXISTING_KEY) {
-                cmd.arg("GET")
-                    .arg(buffer.format(thread_rng().gen_range(0..SIZE_SET_KEYSPACE)));
-                ChosenAction::GetExisting
-            } else {
-                cmd.arg("GET").arg(
-                    buffer.format(
-                        thread_rng()
-                            .gen_range(SIZE_SET_KEYSPACE..(SIZE_GET_KEYSPACE + SIZE_SET_KEYSPACE)),
-                    ),
-                );
-                ChosenAction::GetNonExisting
-            }
-        } else {
-            cmd.arg("SET")
-                .arg(buffer.format(thread_rng().gen_range(
-                    (SIZE_GET_KEYSPACE + SIZE_SET_KEYSPACE)
-                        ..2 * (SIZE_GET_KEYSPACE + SIZE_SET_KEYSPACE),
-                )))
-                .arg(value)
-                .arg("PX") // TTL in milliseconds
-                .arg(10_000); // 10 seconds
-            ChosenAction::Set
-        }
+        return ChosenAction::Set;
+        // if rand::thread_rng().gen_bool(PROB_GET) {
+        //     if rand::thread_rng().gen_bool(PROB_GET_EXISTING_KEY) {
+        //         cmd.arg("GET")
+        //             .arg(buffer.format(thread_rng().gen_range(0..SIZE_SET_KEYSPACE)));
+        //         ChosenAction::GetExisting
+        //     } else {
+        //         cmd.arg("GET").arg(
+        //             buffer.format(
+        //                 thread_rng()
+        //                     .gen_range(SIZE_SET_KEYSPACE..(SIZE_GET_KEYSPACE + SIZE_SET_KEYSPACE)),
+        //             ),
+        //         );
+        //         ChosenAction::GetNonExisting
+        //     }
+        // } else {
+        //     cmd.arg("SET")
+        //         .arg(buffer.format(thread_rng().gen_range(
+        //             (SIZE_GET_KEYSPACE + SIZE_SET_KEYSPACE)
+        //                 ..2 * (SIZE_GET_KEYSPACE + SIZE_SET_KEYSPACE),
+        //         )))
+        //         .arg(value)
+        //         .arg("PX") // TTL in milliseconds
+        //         .arg(10_000); // 10 seconds
+        //     ChosenAction::Set
+        // }
     };
     connection.send_command(&cmd, None).await.unwrap();
     action
