@@ -101,7 +101,7 @@ async fn perform_benchmark(args: Args) {
         let number_of_operations = if args.minimal {
             1000
         } else {
-            20000000
+            2000000
             // max(100000, concurrent_tasks_count * 100000)
         };
 
