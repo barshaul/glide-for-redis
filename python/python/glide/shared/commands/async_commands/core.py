@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Dict, List, Mapping, Optional, Protocol, Set, Tuple, Union, cast
 
-from glide.commands.bitmap import (
+from glide.shared.commands.bitmap import (
     BitFieldGet,
     BitFieldSubCommands,
     BitwiseOperation,
@@ -10,8 +10,8 @@ from glide.commands.bitmap import (
     _create_bitfield_args,
     _create_bitfield_read_only_args,
 )
-from glide.commands.command_args import Limit, ListDirection, ObjectType, OrderBy
-from glide.commands.core_options import (
+from glide.shared.commands.command_args import Limit, ListDirection, ObjectType, OrderBy
+from glide.shared.commands.core_options import (
     ConditionalChange,
     ExpireOptions,
     ExpiryGetEx,
@@ -22,7 +22,7 @@ from glide.commands.core_options import (
     PubSubMsg,
     _build_sort_args,
 )
-from glide.commands.sorted_set import (
+from glide.shared.commands.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -40,7 +40,7 @@ from glide.commands.sorted_set import (
     _create_zinter_zunion_cmd_args,
     _create_zrange_args,
 )
-from glide.commands.stream import (
+from glide.shared.commands.stream import (
     StreamAddOptions,
     StreamClaimOptions,
     StreamGroupOptions,
@@ -51,7 +51,7 @@ from glide.commands.stream import (
     StreamTrimOptions,
     _create_xpending_range_args,
 )
-from glide.constants import (
+from glide.shared.constants import (
     TOK,
     TEncodable,
     TResult,
@@ -59,7 +59,7 @@ from glide.constants import (
     TXInfoStreamResponse,
 )
 from glide.protobuf.command_request_pb2 import RequestType
-from glide.routes import Route
+from glide.shared.routes import Route
 
 from glide.glide import ClusterScanCursor
 

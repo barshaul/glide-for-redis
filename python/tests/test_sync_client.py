@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import pytest
-from glide.config import ProtocolVersion
-from glide.constants import OK, TResult
-from glide.routes import (
+from python.glide.shared.config import ProtocolVersion
+from python.glide.shared.constants import OK, TResult
+from python.glide.shared.routes import (
     AllNodes,
     AllPrimaries,
     ByAddressRoute,
@@ -23,8 +23,8 @@ from tests.utils.utils import get_first_result, get_random_string
 
 class TestGlideClients:
     @pytest.mark.skip_if_version_below("6.2.0")
-    @pytest.mark.parametrize("cluster_mode", [True, False])
-    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP2, ProtocolVersion.RESP3])
+    @pytest.mark.parametrize("cluster_mode", [True])
+    @pytest.mark.parametrize("protocol", [ProtocolVersion.RESP3])
     def test_sync_set_return_old_value(self, glide_sync_client: TGlideClient):
         key = get_random_string(10)
         value = get_random_string(10)

@@ -3,13 +3,11 @@
 import asyncio
 
 import pytest
-from glide.config import ProtocolVersion
-from glide.constants import OK
-from glide.exceptions import RequestError
-try:
-    from glide.glide_async.glide_client import TGlideClient
-except ImportError:
-    from glide.sync.glide_client import TGlideClient
+from python.glide.shared.config import ProtocolVersion
+from python.glide.shared.constants import OK
+from python.glide.shared.exceptions import RequestError
+from glide.glide_async.glide_client import TGlideClient
+
 
 from tests.conftest import (
     NEW_PASSWORD,

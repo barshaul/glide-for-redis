@@ -4,7 +4,7 @@ import random
 from typing import AsyncGenerator, Generator, List, Optional, Union
 
 import pytest
-from glide.config import (
+from glide.shared.config import (
     AdvancedGlideClientConfiguration,
     AdvancedGlideClusterClientConfiguration,
     BackoffStrategy,
@@ -15,11 +15,11 @@ from glide.config import (
     ReadFrom,
     ServerCredentials,
 )
-from glide.exceptions import ClosingError
-from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
-from glide.logger import Level as logLevel
-from glide.logger import Logger
-from glide.routes import AllNodes
+from glide.shared.exceptions import ClosingError
+from glide.glide_async import GlideClient, GlideClusterClient, TGlideClient
+from glide.shared.logger import Level as logLevel
+from glide.shared.logger import Logger
+from glide.shared.routes import AllNodes
 from glide.sync import GlideClient as SyncGlideClient
 from glide.sync import GlideClusterClient as SyncGlideClusterClient
 from glide.sync.glide_client import TGlideClient as TSyncGlideClient
@@ -29,6 +29,7 @@ from tests.utils.utils import (
     set_new_acl_username_with_password,
     sync_check_if_server_version_lt,
 )
+
 
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 6379
@@ -239,7 +240,7 @@ def glide_sync_client(
     cluster_mode: bool,
     protocol: ProtocolVersion,
 ) -> Generator[TSyncGlideClient, None, None]:
-    "Get async socket client for tests"
+    "Get sync client for tests"
     client = create_sync_client(request, cluster_mode, protocol=protocol)
     yield client
     sync_test_teardown(request, cluster_mode, protocol)

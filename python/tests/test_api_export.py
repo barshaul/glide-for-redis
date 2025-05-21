@@ -4,12 +4,12 @@ from pathlib import Path
 
 import glide
 
-exported_symbol_list = glide.__all__
+exported_symbol_list = glide.shared.__all__
 
 
 def _get_export_rename_map():
-    glide.__all__
-    root_init_file = Path(__file__).parent.parent / "python" / "glide" / "__init__.py"
+    glide.shared.__all__
+    root_init_file = Path(__file__).parent.parent / "python" / "glide" / "glide_async" / "__init__.py"
     source_code = root_init_file.read_text()
     tree = ast.parse(source_code)
     rename_map = {}

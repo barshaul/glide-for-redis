@@ -4,11 +4,11 @@ import re
 from typing import Mapping, cast
 
 import pytest
-from glide.commands.core_options import InfoSection
-from glide.config import ProtocolVersion, ReadFrom
-from glide.constants import OK
-from glide.glide_client import GlideClusterClient
-from glide.routes import AllNodes, SlotIdRoute, SlotType
+from python.glide.shared.commands.core_options import InfoSection
+from python.glide.shared.config import ProtocolVersion, ReadFrom
+from python.glide.shared.constants import OK
+from glide.glide_async.glide_client import GlideClusterClient
+from python.glide.shared.routes import AllNodes, SlotIdRoute, SlotType
 
 from tests.conftest import create_client
 from tests.utils.utils import get_first_result

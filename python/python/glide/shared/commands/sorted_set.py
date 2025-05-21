@@ -3,8 +3,8 @@
 from enum import Enum
 from typing import List, Optional, Tuple, Union, cast
 
-from glide.commands.command_args import Limit, OrderBy
-from glide.constants import TEncodable
+from .command_args import Limit, OrderBy
+from ..constants import TEncodable
 
 
 class InfBound(Enum):

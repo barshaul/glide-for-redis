@@ -6,15 +6,15 @@ from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Union, cast
 
 import pytest
-from glide import RequestError, TimeoutError
-from glide.commands.batch import (
+from python.glide.shared import RequestError, TimeoutError
+from python.glide.shared.commands.batch import (
     BaseBatch,
     Batch,
     ClusterBatch,
     ClusterTransaction,
     Transaction,
 )
-from glide.commands.bitmap import (
+from python.glide.shared.commands.bitmap import (
     BitFieldGet,
     BitFieldSet,
     BitmapIndexType,
@@ -25,8 +25,8 @@ from glide.commands.bitmap import (
     SignedEncoding,
     UnsignedEncoding,
 )
-from glide.commands.command_args import Limit, ListDirection, OrderBy
-from glide.commands.core_options import (
+from python.glide.shared.commands.command_args import Limit, ListDirection, OrderBy
+from python.glide.shared.commands.core_options import (
     ExpiryGetEx,
     ExpiryTypeGetEx,
     FlushMode,
@@ -34,7 +34,7 @@ from glide.commands.core_options import (
     InfoSection,
     InsertPosition,
 )
-from glide.commands.sorted_set import (
+from python.glide.shared.commands.sorted_set import (
     AggregationType,
     GeoSearchByBox,
     GeoSearchByRadius,
@@ -46,7 +46,7 @@ from glide.commands.sorted_set import (
     ScoreBoundary,
     ScoreFilter,
 )
-from glide.commands.stream import (
+from python.glide.shared.commands.stream import (
     IdBound,
     MaxId,
     MinId,
@@ -56,10 +56,10 @@ from glide.commands.stream import (
     StreamReadGroupOptions,
     TrimByMinId,
 )
-from glide.config import ProtocolVersion
-from glide.constants import OK, TResult, TSingleNodeRoute
-from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
-from glide.routes import AllNodes, SlotIdRoute, SlotKeyRoute, SlotType
+from python.glide.shared.config import ProtocolVersion
+from python.glide.shared.constants import OK, TResult, TSingleNodeRoute
+from glide.glide_async.glide_client import GlideClient, GlideClusterClient, TGlideClient
+from python.glide.shared.routes import AllNodes, SlotIdRoute, SlotKeyRoute, SlotType
 
 from tests.conftest import create_client
 from tests.utils.utils import (

@@ -15,7 +15,15 @@ dependencies = [
 [tool.setuptools]
 package-dir = {"" = "../../"}
 include-package-data = true
-packages = ["glide.sync", "glide", "glide.commands", "glide.commands.sync_commands", "glide.protobuf", "glide.commands.server_modules", "glide.commands.server_modules.ft_options"]
 
 [tool.setuptools.package-data]
 "glide.sync" = ["*.so", "*.pyd", "*.dll", "*.pyi", "py.typed"]
+
+[tool.setuptools.packages.find]
+where = ["../../"]
+include = [
+    "glide.sync*",
+    "glide.shared*",
+    "glide.protobuf*"
+]
+exclude = ["glide", "glide/__init__.py", "glide.shared.commands.async_*", "glide.async_*"]  # <– exclude top-level glide, async, etc.

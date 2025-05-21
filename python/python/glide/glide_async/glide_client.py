@@ -5,14 +5,14 @@ import sys
 import threading
 from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
-from glide.commands.async_commands.cluster_commands import ClusterCommands
-from glide.commands.async_commands.core import CoreCommands
-from glide.commands.async_commands.standalone_commands import StandaloneCommands
-from glide.commands.command_args import ObjectType
-from glide.commands.core_options import PubSubMsg
-from glide.config import BaseClientConfiguration, ServerCredentials
-from glide.constants import DEFAULT_READ_BYTES_SIZE, OK, TEncodable, TRequest, TResult
-from glide.exceptions import (
+from glide.shared.commands.async_commands.cluster_commands import ClusterCommands
+from glide.shared.commands.async_commands.core import CoreCommands
+from glide.shared.commands.async_commands.standalone_commands import StandaloneCommands
+from glide.shared.commands.command_args import ObjectType
+from glide.shared.commands.core_options import PubSubMsg
+from glide.shared.config import BaseClientConfiguration, ServerCredentials
+from glide.shared.constants import DEFAULT_READ_BYTES_SIZE, OK, TEncodable, TRequest, TResult
+from glide.shared.exceptions import (
     ClosingError,
     ConfigurationError,
     ConnectionError,
@@ -21,13 +21,13 @@ from glide.exceptions import (
     TimeoutError,
     get_request_error_class
 )
-from glide.logger import Level as LogLevel
-from glide.logger import Logger as ClientLogger
+from glide.shared.logger import Level as LogLevel
+from glide.shared.logger import Logger as ClientLogger
 from glide.protobuf.command_request_pb2 import Command, CommandRequest, RequestType
 from glide.protobuf.connection_request_pb2 import ConnectionRequest
 from glide.protobuf.response_pb2 import RequestErrorType, Response
-from glide.protobuf_codec import PartialMessageException, ProtobufCodec
-from glide.routes import Route, set_protobuf_route
+from glide.shared.protobuf_codec import PartialMessageException, ProtobufCodec
+from glide.shared.routes import Route, set_protobuf_route
 
 from glide.glide import (
     DEFAULT_TIMEOUT_IN_MILLISECONDS,

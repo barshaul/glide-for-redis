@@ -4,15 +4,15 @@ import string
 from typing import Any, Dict, List, Mapping, Optional, Set, TypeVar, Union, cast
 
 import pytest
-from glide.commands.core_options import InfoSection
-from glide.constants import (
+from python.glide.shared.commands.core_options import InfoSection
+from python.glide.shared.constants import (
     TClusterResponse,
     TFunctionListResponse,
     TFunctionStatsSingleNodeResponse,
     TResult,
 )
-from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
-from glide.routes import AllNodes
+from glide.glide_async.glide_client import GlideClient, GlideClusterClient, TGlideClient
+from python.glide.shared.routes import AllNodes
 from glide.sync.glide_client import TGlideClient as TSyncGlideClient
 from packaging import version
 

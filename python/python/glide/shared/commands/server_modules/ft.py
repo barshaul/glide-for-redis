@@ -5,31 +5,28 @@ module for `vector search` commands.
 
 from typing import List, Mapping, Optional, cast
 
-from glide.commands.server_modules.ft_options.ft_aggregate_options import (
+from glide.shared.commands.server_modules.ft_options.ft_aggregate_options import (
     FtAggregateOptions,
 )
-from glide.commands.server_modules.ft_options.ft_constants import (
+from glide.shared.commands.server_modules.ft_options.ft_constants import (
     CommandNames,
     FtCreateKeywords,
 )
-from glide.commands.server_modules.ft_options.ft_create_options import (
+from glide.shared.commands.server_modules.ft_options.ft_create_options import (
     Field,
     FtCreateOptions,
 )
-from glide.commands.server_modules.ft_options.ft_profile_options import FtProfileOptions
-from glide.commands.server_modules.ft_options.ft_search_options import FtSearchOptions
-from glide.constants import (
+from glide.shared.commands.server_modules.ft_options.ft_profile_options import FtProfileOptions
+from glide.shared.commands.server_modules.ft_options.ft_search_options import FtSearchOptions
+from glide.shared.constants import (
     TOK,
     FtAggregateResponse,
     FtInfoResponse,
     FtProfileResponse,
     FtSearchResponse,
     TEncodable,
+    TGlideClient
 )
-try:
-    from glide.glide_async.glide_client import TGlideClient
-except ImportError:
-    from glide.sync.glide_client import TGlideClient
 
 
 async def create(

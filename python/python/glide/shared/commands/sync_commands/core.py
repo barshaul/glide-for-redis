@@ -1,11 +1,11 @@
 # Copyright Valkey GLIDE Project Contributors - SPDX Identifier: Apache-2.0
 from typing import List, Optional, Protocol, Tuple, cast
 
-from glide.commands.command_args import ObjectType
-from glide.commands.core_options import ConditionalChange, ExpirySet
-from glide.constants import TOK, TEncodable, TResult
+from glide.shared.commands.command_args import ObjectType
+from glide.shared.commands.core_options import ConditionalChange, ExpirySet
+from glide.shared.constants import TOK, TEncodable, TResult
 from glide.protobuf.command_request_pb2 import RequestType
-from glide.routes import Route
+from glide.shared.routes import Route
 
 
 class CoreCommands(Protocol):

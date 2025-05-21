@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Optional
 
-from glide.exceptions import RequestError
+from .exceptions import RequestError
 from glide.protobuf.command_request_pb2 import CommandRequest, Routes, SimpleRoutes
 from glide.protobuf.command_request_pb2 import SlotTypes as ProtoSlotTypes
 

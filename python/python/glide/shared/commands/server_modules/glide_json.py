@@ -19,12 +19,8 @@ Examples:
 """
 from typing import List, Optional, Union, cast
 
-from glide.commands.core_options import ConditionalChange
-from glide.constants import TOK, TEncodable, TJsonResponse, TJsonUniversalResponse
-try:
-    from glide.glide_async.glide_client import TGlideClient
-except ImportError:
-    from glide.sync.glide_client import TGlideClient
+from glide.shared.commands.core_options import ConditionalChange
+from glide.shared.constants import TOK, TEncodable, TJsonResponse, TJsonUniversalResponse, TGlideClient
 
 
 class JsonGetOptions:

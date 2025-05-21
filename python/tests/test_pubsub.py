@@ -7,15 +7,15 @@ from enum import IntEnum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 import pytest
-from glide import PubSubMsg
-from glide.config import (
+from python.glide.shared import PubSubMsg
+from python.glide.shared.config import (
     GlideClientConfiguration,
     GlideClusterClientConfiguration,
     ProtocolVersion,
 )
-from glide.constants import OK
-from glide.exceptions import ConfigurationError
-from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
+from python.glide.shared.constants import OK
+from python.glide.shared.exceptions import ConfigurationError
+from glide.glide_async.glide_client import GlideClient, GlideClusterClient, TGlideClient
 
 from tests.conftest import create_client
 from tests.utils.utils import check_if_server_version_lt, get_random_string
