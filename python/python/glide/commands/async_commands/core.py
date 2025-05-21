@@ -19,6 +19,7 @@ from glide.commands.core_options import (
     InsertPosition,
     OnlyIfEqual,
     UpdateOptions,
+    PubSubMsg,
     _build_sort_args,
 )
 from glide.commands.sorted_set import (
@@ -60,7 +61,7 @@ from glide.constants import (
 from glide.protobuf.command_request_pb2 import RequestType
 from glide.routes import Route
 
-from ...glide import ClusterScanCursor
+from glide.glide import ClusterScanCursor
 
 
 class CoreCommands(Protocol):
@@ -6646,21 +6647,6 @@ class CoreCommands(Protocol):
             TOK,
             await self._execute_command(RequestType.Watch, keys),
         )
-
-    @dataclass
-    class PubSubMsg:
-        """
-        Describes the incoming pubsub message
-
-        Attributes:
-            message (TEncodable): Incoming message.
-            channel (TEncodable): Name of an channel that triggered the message.
-            pattern (Optional[TEncodable]): Pattern that triggered the message.
-        """
-
-        message: TEncodable
-        channel: TEncodable
-        pattern: Optional[TEncodable]
 
     async def get_pubsub_message(self) -> PubSubMsg:
         """

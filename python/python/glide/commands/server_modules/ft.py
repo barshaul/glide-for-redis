@@ -26,7 +26,10 @@ from glide.constants import (
     FtSearchResponse,
     TEncodable,
 )
-from glide.glide_client import TGlideClient
+try:
+    from glide.glide_async.glide_client import TGlideClient
+except ImportError:
+    from glide.sync.glide_client import TGlideClient
 
 
 async def create(

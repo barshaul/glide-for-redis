@@ -7,6 +7,20 @@ from typing import List, Optional, Type, Union, get_args
 from glide.commands.command_args import Limit, OrderBy
 from glide.constants import TEncodable
 
+@dataclass
+class PubSubMsg:
+    """
+    Describes the incoming pubsub message
+
+    Attributes:
+        message (TEncodable): Incoming message.
+        channel (TEncodable): Name of an channel that triggered the message.
+        pattern (Optional[TEncodable]): Pattern that triggered the message.
+    """
+
+    message: TEncodable
+    channel: TEncodable
+    pattern: Optional[TEncodable]
 
 class ConditionalChange(Enum):
     """

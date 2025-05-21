@@ -13,7 +13,7 @@ from glide.constants import (
 )
 from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
 from glide.routes import AllNodes
-from glide.sync import TGlideClient as TSyncGlideClient
+from glide.sync.glide_client import TGlideClient as TSyncGlideClient
 from packaging import version
 
 T = TypeVar("T")

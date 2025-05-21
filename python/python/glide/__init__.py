@@ -1,6 +1,6 @@
 # Copyright Valkey GLIDE Project Contributors - SPDX Identifier: Apache-2.0
 
-from glide.commands.async_commands.core import CoreCommands
+# from glide.commands.async_commands.core import CoreCommands
 from glide.commands.batch import (
     Batch,
     ClusterBatch,
@@ -39,6 +39,7 @@ from glide.commands.core_options import (
     InsertPosition,
     OnlyIfEqual,
     UpdateOptions,
+    PubSubMsg,
 )
 from glide.commands.server_modules import ft, glide_json, json_batch
 from glide.commands.server_modules.ft_options.ft_aggregate_options import (
@@ -154,9 +155,7 @@ from glide.exceptions import (
     RequestError,
     TimeoutError,
 )
-from glide.glide_client import GlideClient, GlideClusterClient, TGlideClient
-from glide.logger import Level as LogLevel
-from glide.logger import Logger
+
 from glide.routes import (
     AllNodes,
     AllPrimaries,
@@ -168,11 +167,30 @@ from glide.routes import (
     SlotType,
 )
 
-from .glide import ClusterScanCursor, Script
+try: 
+    from glide.glide_async.glide_client import GlideClient, GlideClusterClient, TGlideClient
+except ImportError:
+    from glide.sync.glide_client import GlideClient, GlideClusterClient, TGlideClient
 
-PubSubMsg = CoreCommands.PubSubMsg
+__all__ = []
 
-__all__ = [
+try:    
+    from glide.logger import Level as LogLevel
+    from glide.logger import Logger
+    __all__.extend(["Logger", "LogLevel"])
+except ImportError:
+    # Logger currently isn't supported in the Sync client
+    pass 
+
+try:
+    from glide.glide import ClusterScanCursor, Script
+    __all__.extend(["ClusterScanCursor", "Script"])
+except ImportError:
+    # Logger currently isn't supported in the Sync client
+    pass
+
+
+__all__.extend([
     # Client
     "GlideClient",
     "GlideClusterClient",
@@ -227,7 +245,7 @@ __all__ = [
     "OffsetOptions",
     "SignedEncoding",
     "UnsignedEncoding",
-    "Script",
+    # "Script",
     "ScoreBoundary",
     "ConditionalChange",
     "OnlyIfEqual",
@@ -272,7 +290,7 @@ __all__ = [
     "TrimByMaxLen",
     "TrimByMinId",
     "UpdateOptions",
-    "ClusterScanCursor",
+    # "ClusterScanCursor",
     # PubSub
     "PubSubMsg",
     # Json
@@ -282,8 +300,8 @@ __all__ = [
     "JsonArrIndexOptions",
     "JsonArrPopOptions",
     # Logger
-    "Logger",
-    "LogLevel",
+    # "Logger",
+    # "LogLevel",
     # Routes
     "Route",
     "SlotType",
@@ -331,4 +349,4 @@ __all__ = [
     "FtAggregateSortProperty",
     "FtProfileOptions",
     "QueryType",
-]
+])

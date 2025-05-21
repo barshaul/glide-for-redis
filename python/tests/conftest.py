@@ -22,7 +22,7 @@ from glide.logger import Logger
 from glide.routes import AllNodes
 from glide.sync import GlideClient as SyncGlideClient
 from glide.sync import GlideClusterClient as SyncGlideClusterClient
-from glide.sync import TGlideClient as TSyncGlideClient
+from glide.sync.glide_client import TGlideClient as TSyncGlideClient
 
 from tests.utils.cluster import ValkeyCluster
 from tests.utils.utils import (

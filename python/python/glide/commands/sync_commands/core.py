@@ -7,8 +7,6 @@ from glide.constants import TOK, TEncodable, TResult
 from glide.protobuf.command_request_pb2 import RequestType
 from glide.routes import Route
 
-from ...glide import ClusterScanCursor
-
 
 class CoreCommands(Protocol):
     def _execute_command(
@@ -30,15 +28,6 @@ class CoreCommands(Protocol):
         keys: Optional[List[TEncodable]] = None,
         args: Optional[List[TEncodable]] = None,
         route: Optional[Route] = None,
-    ) -> TResult: ...
-
-    def _cluster_scan(
-        self,
-        cursor: ClusterScanCursor,
-        match: Optional[TEncodable] = ...,
-        count: Optional[int] = ...,
-        type: Optional[ObjectType] = ...,
-        allow_non_covered_slots: bool = ...,
     ) -> TResult: ...
 
     def _update_connection_password(

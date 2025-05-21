@@ -21,7 +21,10 @@ from typing import List, Optional, Union, cast
 
 from glide.commands.core_options import ConditionalChange
 from glide.constants import TOK, TEncodable, TJsonResponse, TJsonUniversalResponse
-from glide.glide_client import TGlideClient
+try:
+    from glide.glide_async.glide_client import TGlideClient
+except ImportError:
+    from glide.sync.glide_client import TGlideClient
 
 
 class JsonGetOptions:
