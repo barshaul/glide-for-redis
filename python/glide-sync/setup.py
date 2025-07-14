@@ -1,3 +1,26 @@
+# ------------------------------------------------------------------------------
+# setup.py for valkey-glide-sync
+# ------------------------------------------------------------------------------
+# This setup script defines a Python package that wraps a Rust-based FFI layer.
+# It integrates with Cargo for building the Rust component, and vendors in
+# supporting Rust crates (`ffi`, `glide-core`, `logger_core`) during sdist
+# creation. It includes:
+#
+# - Custom `build_ext` command to build the Rust shared library.
+# - Custom `sdist` command to copy required Rust crates for packaging.
+# - Custom `build_py` command to vendor glide_shared either from source or sdist.
+# - A `clean` command to clean up all build artifacts.
+#
+# Environment Variables:
+# - `GLIDE_SYNC_RELEASE=1` triggers release builds and vendoring for sdist.
+#
+# Usage:
+#   python setup.py build_ext     # Build Rust lib
+#   python setup.py sdist         # Create source tarball with vendored deps
+#   python setup.py bdist_wheel   # Create wheel
+#   python setup.py clean         # Clean all artifacts
+# ------------------------------------------------------------------------------
+
 import os
 import shutil
 import subprocess
@@ -9,11 +32,14 @@ from setuptools.command.build_ext import build_ext as build_ext_orig
 from setuptools.command.sdist import sdist as sdist_orig
 from setuptools.dist import Distribution
 from wheel.bdist_wheel import bdist_wheel as bdist_wheel_orig
+from distutils.core import Command
 
-ROOT = Path(__file__).resolve().parent
-REAL_FFI_PATH = ROOT.parent.parent / "ffi"            # ../.. from glide-sync/
-LOCAL_FFI_SYMLINK = ROOT / "ffi"                      # glide-sync/ffi
+# Paths
+ROOT = Path(__file__).resolve().parent                      # glide-sync/
+REAL_FFI_PATH = ROOT.parent.parent / "ffi"                 # ../../ffi
+LOCAL_FFI_SYMLINK = ROOT / "ffi"                           # glide-sync/ffi
 
+# Helper to safely remove files, directories, or symlinks
 def remove_existing(path: Path):
     if path.is_symlink():
         print(f"[INFO] Removing symlink: {path}")
@@ -25,43 +51,48 @@ def remove_existing(path: Path):
         print(f"[INFO] Removing file: {path}")
         path.unlink()
 
-from distutils.core import Command
+# ------------------------------------------------------------------------------
+# Custom setuptools commands
+# ------------------------------------------------------------------------------
 
 class CleanCommand(Command):
     """Custom clean command to remove build artifacts."""
     user_options = []
 
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
+    def initialize_options(self): pass
+    def finalize_options(self): pass
 
     def run(self):
         import glob
-
-        to_clean = [
-            "build", "dist", "*.egg-info",
-            "glide_shared", "ffi", "glide-core", "logger_core",
+        paths_to_remove = [
+            "build", "dist", "*.egg-info", "glide_shared",
+            "ffi", "glide-core", "logger_core",
         ]
-
-        for pattern in to_clean:
-            for match in glob.glob(pattern):
+        for pattern in paths_to_remove:
+            # Perform glob under ROOT only
+            for match in glob.glob(str(ROOT / pattern)):
                 remove_existing(Path(match))
 
 class BinaryDistribution(Distribution):
+    """Marks the package as containing binary extensions (e.g., .so)"""
     def has_ext_modules(self):
         return True
 
 class bdist_wheel(bdist_wheel_orig):
+    """Customize wheel metadata to mark as non-pure Python"""
     def finalize_options(self):
         super().finalize_options()
         self.root_is_pure = False
 
 class build_ext(build_ext_orig):
+    """Builds the Rust FFI library using Cargo"""
     def run(self):
         self.ensure_ffi_symlink()
-        release = os.environ.get("GLIDE_SYNC_RELEASE", "0") == "1"
+
+        # Detect release mode
+        release = os.environ.get("RELEASE_MODE", "0") == "1"
+
+        # Set env for Cargo build
         env = os.environ.copy()
         env.update({
             "GLIDE_NAME": env.get("GLIDE_NAME", "GlidePySync"),
@@ -76,15 +107,13 @@ class build_ext(build_ext_orig):
             check=True
         )
 
-
-        # Copy built library to package dir
-        release = os.environ.get("GLIDE_SYNC_RELEASE", "0") == "1"
+        # Determine shared library path based on platform
         target_dir = "release" if release else "debug"
         suffix = {
             "linux": ".so",
             "darwin": ".dylib",
             "win32": ".dll"
-        }[os.sys.platform]
+        }[sys.platform]
         lib_name = "libglide_ffi" + suffix
 
         built_lib = LOCAL_FFI_SYMLINK / "target" / target_dir / lib_name
@@ -92,17 +121,21 @@ class build_ext(build_ext_orig):
         dest_dir.mkdir(parents=True, exist_ok=True)
         print(f"[INFO] Copying {built_lib} → {dest_dir / lib_name}")
         shutil.copy2(built_lib, dest_dir / lib_name)
-        
+
         super().run()
 
     def ensure_ffi_symlink(self):
+        """Ensure ffi/ is a symlink pointing to ../../ffi"""
         if not LOCAL_FFI_SYMLINK.exists():
             print(f"[INFO] Creating symlink: {LOCAL_FFI_SYMLINK} → {REAL_FFI_PATH}")
             LOCAL_FFI_SYMLINK.symlink_to(REAL_FFI_PATH, target_is_directory=True)
 
 class sdist(sdist_orig):
+    """Vendors Rust sources into the Python package before creating sdist"""
     def run(self):
         print("[INFO] Preparing source distribution (sdist) with vendored Rust sources")
+
+        # Paths to vendor for packaging
         to_copy = {
             "glide_shared": ROOT.parent / "glide-shared" / "glide_shared",
             "ffi": ROOT.parent.parent / "ffi",
@@ -110,14 +143,11 @@ class sdist(sdist_orig):
             "logger_core": ROOT.parent.parent / "logger_core",
         }
 
+        # Ignore compiled/test directories
         def ignore_dirs(_, names):
-            ignored = []
-            if "target" in names:
-                ignored.append("target")
-            if "tests" in names:
-                ignored.append("tests")
-            return ignored
+            return [n for n in names if n in {"target", "tests"}]
 
+        # Copy each relevant Rust folder into the Python project root
         for name, src_path in to_copy.items():
             dest_path = ROOT / name
             if dest_path.exists():
@@ -126,63 +156,30 @@ class sdist(sdist_orig):
             shutil.copytree(src_path, dest_path, ignore=ignore_dirs)
 
         super().run()
-        
+
 class build_py(build_py_orig):
+    """Ensure required tools are available and vendor glide_shared"""
     def run(self):
-        # Ensure dependencies in PATH
+        # Check for required tools in PATH and extend PATH if missing
         for tool, hint_path in [("cargo", "~/.cargo/bin"), ("protoc", "~/.local/bin")]:
             if shutil.which(tool) is None:
                 os.environ["PATH"] += os.pathsep + os.path.expanduser(hint_path)
                 if shutil.which(tool) is None:
                     raise RuntimeError(f"[ERROR] Failed to find {tool} in PATH")
 
-        # Vendor glide_shared    
-        print("[INFO] Vendoring glide_shared into the built library folder")
-        from_sdist = Path("PKG-INFO").exists()  # heuristic: sdist leaves PKG-INFO
+        # Determine if building from sdist (PKG-INFO is a common heuristic)
+        from_sdist = Path("PKG-INFO").exists()
         source = ROOT / "glide_shared" if from_sdist else ROOT.parent / "glide-shared" / "glide_shared"
         dest = Path(self.build_lib) / "glide_shared"
-        shutil.copytree(source, dest, dirs_exist_ok=True)
 
+        print(f"[INFO] Vendoring glide_shared from {source} → {dest}")
+        shutil.copytree(source, dest, dirs_exist_ok=True)
 
         super().run()
 
-
-class CleanCommand(Command):
-    """Custom clean command to tidy up the project root."""
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        import glob
-
-        paths_to_remove = [
-            "build", "dist", "*.egg-info", "glide_shared", "ffi", "glide-core", "logger_core"
-        ]
-
-        for path in paths_to_remove:
-            for match in glob.glob(path):
-                full_path = Path(match)
-                if full_path.is_symlink():
-                    print(f"[CLEAN] Removing symlink: {full_path}")
-                    full_path.unlink()
-                elif full_path.is_dir():
-                    print(f"[CLEAN] Removing directory: {full_path}")
-                    shutil.rmtree(full_path, ignore_errors=True)
-                elif full_path.exists():
-                    print(f"[CLEAN] Removing file: {full_path}")
-                    full_path.unlink()
-
-        # Optionally, clean Rust build artifacts
-        ffi_path = ROOT / "ffi"
-        target_path = ffi_path / "target"
-        if target_path.exists():
-            print(f"[CLEAN] Removing Rust target directory: {target_path}")
-            shutil.rmtree(target_path, ignore_errors=True)
+# ------------------------------------------------------------------------------
+# Setup configuration
+# ------------------------------------------------------------------------------
 
 setup(
     name="valkey-glide-sync",

@@ -182,28 +182,30 @@ def build_sync_client(glide_version: str, release: bool, no_cache: bool) -> None
     )
     generate_protobuf_files()
     env = activate_venv(no_cache)
-    install_glide_shared(env)
 
     # Optionally clean build artifacts
     if no_cache:
-        for path in [GLIDE_SYNC_DIR / "build", GLIDE_SYNC_DIR / "dist"]:
-            if path.exists():
-                print(f"[INFO] Removing cache directory: {path}")
-                rmtree(path)
+        run_command(
+            [str(PYTHON_EXE), "setup.py", "clean"],
+            cwd=GLIDE_SYNC_DIR,
+            label="Clean all build artifacts",
+            env=env,
+        )
 
     # Build the FFI library
-    cargo_args = ["cargo", "build"]
-    if release:
-        cargo_args.append("--release")
-    run_command(
-        cargo_args,
-        cwd=FFI_DIR,
-        label="cargo build ffi",
-        env={
+    build_args = ["pip", "install", "."]
+    env = {
             "GLIDE_NAME": GLIDE_SYNC_NAME,
             "GLIDE_VERSION": glide_version,
             **os.environ,
-        },
+    }
+    if release:
+        env["RELEASE_MODE"] = "1"
+    run_command(
+        build_args,
+        cwd=GLIDE_SYNC_DIR,
+        label="build and install GLIDE Python Sync client",
+        env=env,
     )
 
     # Locate the output .so file

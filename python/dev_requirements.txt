@@ -17,3 +17,4 @@ sphinx-rtd-theme
 types-cffi # where is it used?
 setuptools
 wheel >= 0.45
+build
