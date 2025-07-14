@@ -12,8 +12,8 @@ types-protobuf ~= 5.29.1
 packaging >= 22.0
 sphinx >= 7.4.7
 sphinx-rtd-theme
-setuptools
 
 # Sync
-cffi
 types-cffi # where is it used?
+setuptools
+wheel >= 0.45

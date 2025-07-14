@@ -1,15 +1,28 @@
+[project]
+dynamic = ["version", "dependencies"]
+name = "valkey-glide-sync"
+
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "cffi>=1.0.0"]
+requires = [
+    "setuptools>=61.0", 
+    "wheel", 
+    "cffi>=1.0.0"
+]
 build-backend = "setuptools.build_meta"
 
 
-# Optional: pass environment variables
+[tool.setuptools]
+packages = ["glide_sync"]
+
 [tool.cibuildwheel.environment]
 GLIDE_NAME = "GlidePySync"
 GLIDE_VERSION = "0.1.0"
 GLIDE_SYNC_RELEASE = "0"
+VENDOR_GLIDE_SHARED = "1"
 
 [tool.cibuildwheel]
+build = "pp39-*"
+skip = "*-musllinux* *i686*"
 before-build = """
 # Install rust
 curl https://sh.rustup.rs -sSf | sh -s -- -y && export PATH=$HOME/.cargo/bin:$PATH
