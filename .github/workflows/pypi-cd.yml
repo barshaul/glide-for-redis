@@ -125,11 +125,11 @@ jobs:
               working-directory: ./python
               run: |
                   SED_FOR_MACOS=`if [[ "${{ matrix.build.OS }}" =~ .*"macos".*  ]]; then echo "''"; fi`
-                  # Set the version for the Async client
+                  # Set the version for the Async, Sync and Shared packages
                   # List of packages to update
                   for package in glide-async glide-sync glide-shared; do
                     echo "Patching version in $package/pyproject.toml"
-                    sed -i $SED_FOR_MACOS 's/^dynamic = \["version"\]/version = ${{ env.RELEASE_VERSION }}/' "./$package/pyproject.toml"
+                    sed -i $SED_FOR_MACOS "s/^dynamic = \["version"\]/version = \"${{ env.RELEASE_VERSION }}\"/" "./$package/pyproject.toml"
                     # Log the updated file
                     cat "./$package/pyproject.toml"
                   done
@@ -143,7 +143,7 @@ jobs:
             - name: Update package version in config.toml
               uses: ./.github/workflows/update-glide-version
               with:
-                  folder_path: "${{ github.workspace }}/python/.cargo"
+                  folder_path: "${{ github.workspace }}/python/glide-async/.cargo"
                   named_os: ${{ matrix.build.NAMED_OS }}
 
             ### BUILD ###
@@ -314,7 +314,7 @@ jobs:
             ### SYNC CLIENT ###
 
             - name: Install cibuildwheel
-              run: python3 -m pip install cibuildwheel==3.0.1
+              run: python3 -m pip install cibuildwheel==3.0
 
             - name: Build wheels
               run: |
@@ -361,11 +361,11 @@ jobs:
               working-directory: ./python
               run: |
                   SED_FOR_MACOS=`if [[ "${{ matrix.build.OS }}" =~ .*"macos".*  ]]; then echo "''"; fi`
-                  # Set the version for the Async client
+                  # Set the version for the Async, Sync and Shared packages
                   # List of packages to update
                   for package in glide-async glide-sync glide-shared; do
                     echo "Patching version in $package/pyproject.toml"
-                    sed -i $SED_FOR_MACOS 's/^dynamic = \["version"\]/version = ${{ env.RELEASE_VERSION }}/' "./$package/pyproject.toml"
+                    sed -i $SED_FOR_MACOS "s/^dynamic = \["version"\]/version = \"${{ env.RELEASE_VERSION }}\"/" "./$package/pyproject.toml"
                     # Log the updated file
                     cat "./$package/pyproject.toml"
                   done
