@@ -158,8 +158,9 @@ cython_debug/
 *_pb2.pyi
 protoc-*.zip
 
-# python-sync sdist rust folders
+# python build artifact folders
 glide-sync/ffi
 glide-sync/glide-core
 glide-sync/logger_core
 glide-sync/glide_shared
+glide-async/python/glide_shared

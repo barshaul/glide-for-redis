@@ -18,7 +18,7 @@ packages = ["glide_sync"]
 RELEASE_MODE = "1"
 
 [tool.cibuildwheel]
-build = "pp39-*"
+build = "cp313-*"
 skip = "*-musllinux* *i686*"
 before-build = """
 # Install rust
